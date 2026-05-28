@@ -1,5 +1,5 @@
 export const USER_INFO = {
-  name: "본인 이름",
+  name: "정은지",
   // 집 주소는 .env.local의 NEXT_PUBLIC_HOME_ADDRESS에서 로드
   homeAddress: process.env.NEXT_PUBLIC_HOME_ADDRESS ?? "출발지 주소를 .env.local에 설정해주세요",
   commuteBase: "평일 오전 7:30 출발 기준",
@@ -13,10 +13,8 @@ export const RESUME_TEXT = `
 # 지원자 이력서
 
 ## 기본 정보
-- 이름: (미입력 — data/resume.ts에서 직접 수정)
-- 이메일: (미입력)
-- 연락처: (미입력)
-- GitHub: (미입력)
+- 이름: 정은지
+- GitHub: https://github.com/hhoing
 
 ---
 
