@@ -1,80 +1,194 @@
-# Fit Check — AI 취업 매니저 대시보드
+# Fit Check
 
-채용 공고를 붙여넣으면 AI가 자동으로 파싱하고, 내 이력서와 비교해 적합도를 분석해주는 개인용 취업 관리 도구입니다.
+취업 준비 중 여러 채용 공고를 탭으로 띄워두지 않고, 한곳에 저장해 마감일과 지원 상태를 관리하는 개인용 취업 매니저입니다.
 
-## 주요 기능
+공고 URL을 넣거나 공고 내용을 붙여넣으면 AI가 회사명, 직무, 마감일, 근무지, 요구 스펙을 추출하고, 내 이력서와 비교해 적합도를 보여주는 것을 목표로 합니다.
 
-- **공고 파싱** — 텍스트/URL 입력 시 Claude AI가 회사명·직무·마감일·근무지·요구스펙 자동 추출
-- **적합도 분석** — 이력서와 공고를 비교해 유리한 조건(✓)과 부족한 조건(✗) 분류, 0~100점 게이지 시각화
-- **지원 상태 관리** — 관심 / 서류 제출 / 면접 진행 / 결과 대기 / 합격 / 불합격 추적
-- **통근 시간 계산** — 출발지 기준 대중교통 예상 시간 표시 (네이버/카카오 API 연동 준비됨)
-- **잡플래닛 연동** — 기업 후기 바로가기 링크
-- **영구 저장** — localStorage로 새로고침해도 공고 목록 유지
+## 해결하려는 문제
+
+- 하루에 여러 공고를 보다 보면 브라우저 탭이 너무 많이 쌓입니다.
+- 관심은 있지만 바로 지원할지 애매한 공고를 따로 정리하기 어렵습니다.
+- 마감일을 놓치기 쉽습니다.
+- 내 이력서와 공고 요구사항이 얼마나 맞는지 빠르게 판단하기 어렵습니다.
+
+Fit Check는 이 흐름을 `공고 저장 -> D-day 확인 -> 적합도 분석 -> 지원 상태 관리`로 단순하게 만드는 것을 목표로 합니다.
+
+## 현재 구현된 기능
+
+- 공고 텍스트 붙여넣기
+- 공고 URL 입력
+- AI 기반 공고 정보 추출
+- 공고 카드 목록
+- 지원 마감 D-day 표시
+- 마감된 공고 분리
+- 지원 상태 필터
+  - 관심
+  - 서류 제출
+  - 면접 진행
+  - 결과 대기
+  - 합격
+  - 불합격
+- 상세 모달에서 공고 정보 확인
+- 이력서 기반 적합도 점수 및 장단점 분석
+- 통근 시간 더미 정보 표시
+- localStorage 기반 로컬 저장
+
+## 앞으로 추가하고 싶은 기능
+
+- 이미지 업로드 후 공고 내용 추출
+- OCR 또는 비전 모델을 이용한 캡처 이미지 분석
+- 공고 원본 URL 저장
+- 개인 메모
+- 우선순위 또는 즐겨찾기
+- 마감 임박순 정렬
+- 마감 임박 알림
+- 이력서 설정 화면
+- DB 저장
+- 로그인 기반 계정별 저장
+- 브라우저 확장 프로그램 또는 북마클릿으로 현재 보고 있는 공고 저장
+
+## 개발 순서
+
+일반적으로 개발자는 모든 기능을 한 번에 만들기보다, 가장 중요한 흐름을 작게 완성한 뒤 점진적으로 확장합니다.
+
+이 프로젝트에서는 다음 순서로 진행합니다.
+
+1. 문제 정의
+   - 공고 탭을 여러 개 띄워두는 대신 공고를 저장하고 관리할 수 있게 합니다.
+
+2. MVP 범위 정하기
+   - 텍스트 또는 URL로 공고를 등록합니다.
+   - 회사명, 직무, 마감일, 요구 스펙을 추출합니다.
+   - 공고 목록과 D-day를 보여줍니다.
+   - 지원 상태를 변경할 수 있게 합니다.
+
+3. 데이터 모델 정리
+   - 공고 하나가 어떤 정보를 가져야 하는지 정합니다.
+   - 예: 회사명, 직무명, 마감일, URL, 상태, 요구 스펙, 메모, 적합도 점수
+
+4. 핵심 흐름 완성
+   - 공고 입력
+   - AI 파싱
+   - 저장
+   - 목록 표시
+   - 상세 보기
+
+5. 저장 방식 개선
+   - 처음에는 localStorage로 빠르게 검증합니다.
+   - 실제로 오래 사용할 단계가 되면 DB로 이전합니다.
+
+6. 입력 방식 확장
+   - 텍스트 붙여넣기
+   - URL 입력
+   - 이미지 업로드
+   - 브라우저 확장 프로그램
+
+7. 사용성 개선
+   - 정렬, 검색, 필터, 메모, 우선순위 같은 실제 사용 중 필요한 기능을 추가합니다.
+
+8. 알림 추가
+   - 앱 안에서 마감 임박 공고를 강조합니다.
+   - 이후 브라우저 알림, 이메일, 캘린더 연동 등을 검토합니다.
+
+9. 배포와 보안 정리
+   - API 키를 안전하게 관리합니다.
+   - 이력서 정보와 개인정보를 코드에서 분리합니다.
+   - 배포 환경의 권한과 환경변수를 정리합니다.
+
+## 기록 방식
+
+개발 중 떠오르는 내용은 종류별로 나누어 기록합니다.
+
+- `README.md`
+  - 프로젝트 소개, 목적, 주요 기능, 실행 방법, 개발 방향을 기록합니다.
+
+- `TODO.md`
+  - 바로 해야 할 작업을 체크리스트로 기록합니다.
+
+- `docs/product-plan.md`
+  - 왜 이 앱을 만드는지, 어떤 문제를 해결하는지, 사용자가 어떤 흐름으로 쓸지 기록합니다.
+
+- `docs/development-roadmap.md`
+  - 개발 순서, 기능 우선순위, 단계별 목표를 기록합니다.
+
+- `docs/data-model.md`
+  - 공고, 이력서, 분석 결과 같은 데이터 구조를 기록합니다.
+
+현재는 README에 핵심 방향을 먼저 정리하고, 프로젝트가 커지면 `docs/` 폴더로 세부 문서를 분리합니다.
+
+## 추천 다음 작업
+
+가장 자연스러운 다음 순서는 데이터 모델 정리입니다.
+
+우선 `JobPosting` 타입에 앞으로 필요한 필드를 추가할 준비를 합니다.
+
+- `sourceUrl`: 공고 원본 URL
+- `memo`: 개인 메모
+- `priority`: 우선순위
+- `appliedAt`: 지원일
+- `reminderAt`: 알림 예정일
+- `sourceType`: text, url, image
+
+그다음 이미지 업로드/OCR 기능을 붙이면, 처음 기획한 “URL 또는 사진으로 공고 저장” 흐름에 가까워집니다.
 
 ## 기술 스택
 
-- **Framework**: Next.js 16 (App Router)
-- **Styling**: Tailwind CSS
-- **AI**: Anthropic Claude (claude-haiku-4-5)
-- **Icons**: Lucide React
-- **Language**: TypeScript
+- Framework: Next.js 16 App Router
+- Language: TypeScript
+- UI: React, Tailwind CSS
+- Icons: lucide-react
+- AI: Anthropic Claude
+- Storage: localStorage
 
-## 시작하기
-
-### 1. 환경변수 설정
-
-```bash
-cp .env.example .env.local
-```
-
-`.env.local`을 열어 아래 값을 채워주세요:
-
-```
-ANTHROPIC_API_KEY=sk-ant-...       # Claude API 키 (없으면 더미 데이터로 동작)
-NEXT_PUBLIC_HOME_ADDRESS=서울시 ... # 출발지 주소 (통근 시간 계산 기준)
-```
-
-### 2. 이력서 등록
-
-`data/resume.ts`의 `RESUME_TEXT` 변수에 본인의 이력서 내용을 붙여넣으세요.
-
-### 3. 개발 서버 실행
+## 실행 방법
 
 ```bash
 npm install
 npm run dev
 ```
 
-[http://localhost:3000](http://localhost:3000)에서 확인하세요.
+브라우저에서 아래 주소로 접속합니다.
+
+```txt
+http://localhost:3000
+```
+
+## 환경변수
+
+`.env.local`에 필요한 값을 설정합니다.
+
+```env
+ANTHROPIC_API_KEY=your_api_key
+NEXT_PUBLIC_HOME_ADDRESS=출발지 주소
+```
+
+`ANTHROPIC_API_KEY`가 없으면 더미 데이터로 동작하도록 구성되어 있습니다.
 
 ## 프로젝트 구조
 
+```txt
+app/
+  api/
+    parse-job/
+      route.ts
+    analyze-fit/
+      route.ts
+  page.tsx
+  layout.tsx
+components/
+  JobInput.tsx
+  JobCard.tsx
+  JobModal.tsx
+  FitAnalysis.tsx
+  GaugeChart.tsx
+  CommuteInfo.tsx
+  Toast.tsx
+hooks/
+  useJobs.ts
+lib/
+  constants.ts
+data/
+  resume.ts
+types/
+  index.ts
 ```
-├── app/
-│   ├── api/
-│   │   ├── parse-job/      # 공고 파싱 API (Claude)
-│   │   └── analyze-fit/    # 적합도 분석 API (Claude)
-│   ├── page.tsx            # 메인 대시보드
-│   └── layout.tsx
-├── components/
-│   ├── JobCard.tsx         # 공고 카드 (D-Day, 상태 뱃지)
-│   ├── JobModal.tsx        # 상세 모달 (분석 결과, 상태 변경)
-│   ├── JobInput.tsx        # 공고 입력
-│   ├── GaugeChart.tsx      # 반원 게이지 차트
-│   ├── FitAnalysis.tsx     # 유리/불리 분석
-│   ├── CommuteInfo.tsx     # 통근 시간
-│   └── Toast.tsx           # 알림 시스템
-├── hooks/
-│   └── useJobs.ts          # localStorage 영구 저장 훅
-├── lib/
-│   └── constants.ts        # 지원 상태 설정
-├── data/
-│   └── resume.ts           # 이력서 데이터 (직접 수정)
-├── types/
-│   └── index.ts            # TypeScript 타입 정의
-└── .env.example            # 환경변수 템플릿
-```
-
-## API 키 없이 사용하기
-
-`ANTHROPIC_API_KEY`를 설정하지 않아도 더미 데이터로 모든 UI 기능을 확인할 수 있습니다.
