@@ -141,8 +141,8 @@ export default function JobModal({ job, onClose, onUpdate, onRequestDelete }: Jo
         parsedAt: new Date().toISOString(),
         lastParseError: undefined,
         commuteTime: undefined,
-        fitScore: undefined,
-        fitAnalysis: undefined,
+        fitScore: localJob.fitScore,
+        fitAnalysis: localJob.fitAnalysis,
       };
 
       setLocalJob(refreshed);
@@ -156,14 +156,6 @@ export default function JobModal({ job, onClose, onUpdate, onRequestDelete }: Jo
       setRefreshingInfo(false);
     }
   }, [analyzeJob, getRefreshPayload, localJob, onUpdate, toast]);
-
-  useEffect(() => {
-    const timer = window.setTimeout(() => {
-      runAnalysis();
-    }, 0);
-
-    return () => window.clearTimeout(timer);
-  }, [runAnalysis]);
 
   const handleStatusChange = useCallback(
     (status: JobStatus) => {

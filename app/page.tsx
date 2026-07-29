@@ -13,7 +13,7 @@ import {
   Target,
   X,
 } from "lucide-react";
-import { JobPosting, JobStatus, ParseJobResponse } from "@/types";
+import { AnalyzeFitResponse, JobPosting, JobStatus, ParseJobResponse } from "@/types";
 import { STATUS_LIST, STATUS_CONFIG } from "@/lib/constants";
 import { getDeadlineSortTime, isDeadlineExpired } from "@/lib/deadline";
 import { CURRENT_JOB_PARSER_VERSION } from "@/lib/jobParserVersion";
@@ -76,8 +76,8 @@ function mergeParsedJob(
     parsedAt: new Date().toISOString(),
     lastParseError: undefined,
     commuteTime: undefined,
-    fitScore: undefined,
-    fitAnalysis: undefined,
+    fitScore: job.fitScore,
+    fitAnalysis: job.fitAnalysis,
   };
 }
 
@@ -96,6 +96,8 @@ export default function DashboardPage() {
     running: boolean;
   } | null>(null);
   const upgradingIdsRef = useRef<Set<string>>(new Set());
+  const analyzingIdsRef = useRef<Set<string>>(new Set());
+  const analysisAttemptedIdsRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
     if (window.location.hostname.endsWith(".vercel.app")) {
@@ -116,6 +118,42 @@ export default function DashboardPage() {
     window.addEventListener("scroll", handleScroll, { passive: true });
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
+
+  const analyzeAndStoreJob = useCallback(
+    async (job: JobPosting, options: { force?: boolean } = {}) => {
+      if (!options.force && job.fitScore !== undefined && job.fitAnalysis) return job;
+      if (analyzingIdsRef.current.has(job.id)) return job;
+
+      analyzingIdsRef.current.add(job.id);
+      analysisAttemptedIdsRef.current.add(job.id);
+
+      try {
+        const res = await fetch("/api/analyze-fit", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ jobPosting: job }),
+        });
+        if (!res.ok) throw new Error("적합도 분석에 실패했습니다.");
+
+        const data = (await res.json()) as AnalyzeFitResponse;
+        const analyzed: JobPosting = {
+          ...job,
+          fitScore: data.fitScore,
+          fitAnalysis: data.fitAnalysis,
+        };
+
+        updateJob(analyzed);
+        setSelectedJob((prev) => (prev?.id === analyzed.id ? analyzed : prev));
+        return analyzed;
+      } catch (error) {
+        console.error("fit analysis failed:", error);
+        return job;
+      } finally {
+        analyzingIdsRef.current.delete(job.id);
+      }
+    },
+    [updateJob]
+  );
 
   const handleParsed = useCallback(
     (data: ParseJobResponse, rawText: string) => {
@@ -148,8 +186,9 @@ export default function DashboardPage() {
       addJob(newJob);
       setShowInput(false);
       setSelectedJob(newJob);
+      void analyzeAndStoreJob(newJob);
     },
-    [addJob]
+    [addJob, analyzeAndStoreJob]
   );
 
   useEffect(() => {
@@ -184,6 +223,7 @@ export default function DashboardPage() {
           const mergedJob = mergeParsedJob(job, data, payload);
           updateJob(mergedJob);
           setSelectedJob((prev) => (prev?.id === job.id ? mergedJob : prev));
+          await analyzeAndStoreJob(mergedJob, { force: true });
         } catch (error) {
           const failedJob = {
             ...job,
@@ -204,7 +244,23 @@ export default function DashboardPage() {
         }
       }
     })();
-  }, [isLoaded, jobs, updateJob]);
+  }, [analyzeAndStoreJob, isLoaded, jobs, updateJob]);
+
+  useEffect(() => {
+    if (!isLoaded) return;
+
+    const jobsToAnalyze = jobs.filter((job) => {
+      if (job.fitScore !== undefined && job.fitAnalysis) return false;
+      if ((job.parserVersion ?? 0) < CURRENT_JOB_PARSER_VERSION) return false;
+      if (analysisAttemptedIdsRef.current.has(job.id)) return false;
+      if (analyzingIdsRef.current.has(job.id)) return false;
+      return true;
+    });
+
+    jobsToAnalyze.forEach((job) => {
+      void analyzeAndStoreJob(job);
+    });
+  }, [analyzeAndStoreJob, isLoaded, jobs]);
 
   const handleUpdateJob = useCallback(
     (updated: JobPosting) => {
@@ -351,7 +407,7 @@ export default function DashboardPage() {
         {upgradeProgress?.running && (
           <div className="flex items-center gap-2 rounded-xl border border-blue-100 bg-blue-50 px-4 py-3 text-xs font-medium text-blue-600">
             <Loader2 className="h-4 w-4 animate-spin" />
-            기존 공고에 최신 파서와 위치 추출 기준을 적용 중입니다.
+            기존 공고에 최신 파서와 적합도 점수 저장 기준을 적용 중입니다.
             <span className="ml-auto text-blue-400">
               {upgradeProgress.done}/{upgradeProgress.total}
             </span>
@@ -556,7 +612,7 @@ export default function DashboardPage() {
       {/* 상세 모달 */}
       {selectedJob && (
         <JobModal
-          key={`${selectedJob.id}-${selectedJob.parserVersion ?? 0}-${selectedJob.parsedAt ?? ""}`}
+          key={`${selectedJob.id}-${selectedJob.parserVersion ?? 0}-${selectedJob.parsedAt ?? ""}-${selectedJob.fitScore ?? "pending"}`}
           job={selectedJob}
           onClose={() => setSelectedJob(null)}
           onUpdate={handleUpdateJob}
