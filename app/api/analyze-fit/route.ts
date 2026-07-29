@@ -220,11 +220,14 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    const fallback = getFallbackAnalysis(jobPosting);
+
     if (!process.env.ANTHROPIC_API_KEY) {
-      return NextResponse.json(getFallbackAnalysis(jobPosting));
+      return NextResponse.json(fallback);
     }
 
-  const jobInfo = `
+    try {
+      const jobInfo = `
 회사명: ${jobPosting.companyName}
 직무: ${jobPosting.jobTitle}
 근무지: ${jobPosting.workplaceAddress}
@@ -261,39 +264,48 @@ ${jobPosting.requiredSpecs.map((s) => `- ${s}`).join("\n")}
 ${jobPosting.rawText.slice(0, 6000)}
 `;
 
-    const message = await client.messages.create({
-      model: "claude-haiku-4-5-20251001",
-      max_tokens: 1024,
-      system: `${ANALYZE_PROMPT}\n\n${CAREER_FIT_CRITERIA_TEXT}`,
-      messages: [
-        {
-          role: "user",
-          content: `=== 지원자 이력서 ===\n${RESUME_TEXT}\n\n=== 채용 공고 ===\n${jobInfo}`,
+      const message = await client.messages.create({
+        model: "claude-haiku-4-5-20251001",
+        max_tokens: 1024,
+        system: `${ANALYZE_PROMPT}\n\n${CAREER_FIT_CRITERIA_TEXT}`,
+        messages: [
+          {
+            role: "user",
+            content: `=== 지원자 이력서 ===\n${RESUME_TEXT}\n\n=== 채용 공고 ===\n${jobInfo}`,
+          },
+        ],
+      });
+
+      const content = message.content[0];
+      if (content.type !== "text") {
+        throw new Error("Unexpected response type");
+      }
+
+      const jsonMatch = content.text.match(/```json\s*([\s\S]*?)```/) ||
+        content.text.match(/\{[\s\S]*\}/);
+      const jsonStr = jsonMatch ? (jsonMatch[1] || jsonMatch[0]) : content.text;
+      const raw = JSON.parse(jsonStr.trim());
+
+      const result: AnalyzeFitResponse = {
+        fitScore: Math.max(0, Math.min(100, Number(raw.fitScore))),
+        fitAnalysis: {
+          advantages: Array.isArray(raw.advantages) ? raw.advantages : fallback.fitAnalysis.advantages,
+          disadvantages: Array.isArray(raw.disadvantages)
+            ? raw.disadvantages
+            : fallback.fitAnalysis.disadvantages,
+          summary: typeof raw.summary === "string" ? raw.summary : fallback.fitAnalysis.summary,
         },
-      ],
-    });
+        analysisMode: "ai",
+      };
 
-    const content = message.content[0];
-    if (content.type !== "text") {
-      throw new Error("Unexpected response type");
+      return NextResponse.json(result);
+    } catch (error) {
+      console.warn(
+        "AI analysis fallback:",
+        error instanceof Error ? error.message : "unknown error"
+      );
+      return NextResponse.json(fallback);
     }
-
-    const jsonMatch = content.text.match(/```json\s*([\s\S]*?)```/) ||
-      content.text.match(/\{[\s\S]*\}/);
-    const jsonStr = jsonMatch ? (jsonMatch[1] || jsonMatch[0]) : content.text;
-    const raw = JSON.parse(jsonStr.trim());
-
-    const result: AnalyzeFitResponse = {
-      fitScore: Math.max(0, Math.min(100, Number(raw.fitScore))),
-      fitAnalysis: {
-        advantages: raw.advantages ?? [],
-        disadvantages: raw.disadvantages ?? [],
-        summary: raw.summary ?? "",
-      },
-      analysisMode: "ai",
-    };
-
-    return NextResponse.json(result);
   } catch (error) {
     console.error("analyze-fit error:", error);
     return NextResponse.json(
