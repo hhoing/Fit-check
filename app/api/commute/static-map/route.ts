@@ -65,27 +65,38 @@ function getDistanceKm(a: MapPoint, b: MapPoint): number {
   return 2 * radiusKm * Math.asin(Math.sqrt(haversine));
 }
 
-function inferLevel(points: MapPoint[]): string {
+function inferLevel(points: MapPoint[]): number {
   const lats = points.map((point) => point.lat);
   const lngs = points.map((point) => point.lng);
   const southWest = { lat: Math.min(...lats), lng: Math.min(...lngs) };
   const northEast = { lat: Math.max(...lats), lng: Math.max(...lngs) };
   const diagonalKm = getDistanceKm(southWest, northEast);
 
-  if (diagonalKm > 120) return "13";
-  if (diagonalKm > 70) return "12";
-  if (diagonalKm > 30) return "11";
-  if (diagonalKm > 12) return "10";
-  if (diagonalKm > 6) return "9";
-  if (diagonalKm > 3) return "8";
-  if (diagonalKm > 1.5) return "7";
-  return "6";
+  if (diagonalKm > 120) return 13;
+  if (diagonalKm > 70) return 12;
+  if (diagonalKm > 30) return 11;
+  if (diagonalKm > 12) return 10;
+  if (diagonalKm > 6) return 9;
+  if (diagonalKm > 3) return 8;
+  if (diagonalKm > 1.5) return 7;
+  return 6;
 }
 
-function buildStaticMapParams(origin: MapPoint, destination: MapPoint, path: MapPoint[]) {
+function clampLevel(level: number): number {
+  return Math.max(0, Math.min(20, Math.round(level)));
+}
+
+function buildStaticMapParams(
+  origin: MapPoint,
+  destination: MapPoint,
+  path: MapPoint[],
+  requestedCenter?: MapPoint,
+  requestedLevel?: number
+) {
   const routePath = path.length > 1 ? path : [origin, destination];
   const boundsPoints = [origin, destination, ...routePath];
-  const center = toCenter(boundsPoints);
+  const center = requestedCenter ?? toCenter(boundsPoints);
+  const level = clampLevel(requestedLevel ?? inferLevel(boundsPoints));
   const params = new URLSearchParams({
     w: "900",
     h: "280",
@@ -95,7 +106,7 @@ function buildStaticMapParams(origin: MapPoint, destination: MapPoint, path: Map
     lang: "ko",
     public_transit: "true",
     center: `${center.lng},${center.lat}`,
-    level: inferLevel(boundsPoints),
+    level: String(level),
   });
 
   params.append("markers", `type:d|size:mid|color:blue|pos:${toPosition(origin)}`);
@@ -116,6 +127,9 @@ export async function GET(req: NextRequest) {
   const originLat = readNumber(params, "olat");
   const destinationLng = readNumber(params, "dlng");
   const destinationLat = readNumber(params, "dlat");
+  const centerLng = readNumber(params, "clng");
+  const centerLat = readNumber(params, "clat");
+  const requestedLevel = readNumber(params, "level");
 
   if (!NAVER_CLIENT_ID || !NAVER_CLIENT_SECRET) {
     return NextResponse.json({ error: "네이버 지도 API 키가 설정되지 않았습니다." }, { status: 503 });
@@ -132,7 +146,15 @@ export async function GET(req: NextRequest) {
 
   const origin = { lat: originLat, lng: originLng };
   const destination = { lat: destinationLat, lng: destinationLng };
-  const staticMapParams = buildStaticMapParams(origin, destination, readPath(params));
+  const requestedCenter =
+    centerLng === null || centerLat === null ? undefined : { lat: centerLat, lng: centerLng };
+  const staticMapParams = buildStaticMapParams(
+    origin,
+    destination,
+    readPath(params),
+    requestedCenter,
+    requestedLevel ?? undefined
+  );
   const mapRes = await fetch(`${NAVER_STATIC_MAP_URL}?${staticMapParams.toString()}`, {
     headers: naverHeaders(),
     cache: "no-store",
