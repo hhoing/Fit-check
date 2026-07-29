@@ -74,8 +74,8 @@ function getJobText(jobPosting: JobPosting): string {
     .map((detail) =>
       [
         detail.title,
-        detail.mainTasks.join(" "),
-        detail.qualifications.join(" "),
+        (detail.mainTasks ?? []).join(" "),
+        (detail.qualifications ?? []).join(" "),
         (detail.preferredQualifications ?? []).join(" "),
       ].join(" ")
     )
@@ -93,9 +93,34 @@ function getJobText(jobPosting: JobPosting): string {
     jobPosting.qualifications?.join(" "),
     jobPosting.preferredQualifications?.join(" "),
     jobPosting.hiringProcess?.join(" "),
-    jobPosting.requiredSpecs.join(" "),
-    jobPosting.rawText,
+    (jobPosting.requiredSpecs ?? []).join(" "),
+    jobPosting.rawText ?? "",
   ].join("\n");
+}
+
+function normalizeJobPosting(jobPosting: JobPosting): JobPosting {
+  return {
+    ...jobPosting,
+    companyName: jobPosting.companyName ?? "미확인",
+    jobTitle: jobPosting.jobTitle ?? "미확인",
+    deadline: jobPosting.deadline ?? null,
+    workplaceAddress: jobPosting.workplaceAddress ?? "미확인",
+    requiredSpecs: jobPosting.requiredSpecs ?? [],
+    positionDetails: (jobPosting.positionDetails ?? []).map((detail) => ({
+      title: detail.title ?? "모집분야",
+      headcount: detail.headcount,
+      mainTasks: detail.mainTasks ?? [],
+      qualifications: detail.qualifications ?? [],
+      preferredQualifications: detail.preferredQualifications ?? [],
+    })),
+    mainTasks: jobPosting.mainTasks ?? [],
+    qualifications: jobPosting.qualifications ?? [],
+    preferredQualifications: jobPosting.preferredQualifications ?? [],
+    hiringProcess: jobPosting.hiringProcess ?? [],
+    rawText: jobPosting.rawText ?? "",
+    createdAt: jobPosting.createdAt ?? new Date().toISOString(),
+    status: jobPosting.status ?? "관심",
+  };
 }
 
 function getFallbackAnalysis(jobPosting: JobPosting): AnalyzeFitResponse {
@@ -211,7 +236,7 @@ function getFallbackAnalysis(jobPosting: JobPosting): AnalyzeFitResponse {
 export async function POST(req: NextRequest) {
   try {
     const body: AnalyzeFitRequest = await req.json();
-    const { jobPosting } = body;
+    const jobPosting = body.jobPosting ? normalizeJobPosting(body.jobPosting) : null;
 
     if (!jobPosting) {
       return NextResponse.json(
@@ -258,10 +283,10 @@ ${(jobPosting.preferredQualifications ?? []).map((s) => `- ${s}`).join("\n") || 
 ${(jobPosting.hiringProcess ?? []).map((s) => `- ${s}`).join("\n") || "- 미확인"}
 
 기존 요구 스펙:
-${jobPosting.requiredSpecs.map((s) => `- ${s}`).join("\n")}
+${(jobPosting.requiredSpecs ?? []).map((s) => `- ${s}`).join("\n")}
 
 공고 원문:
-${jobPosting.rawText.slice(0, 6000)}
+${(jobPosting.rawText ?? "").slice(0, 6000)}
 `;
 
       const message = await client.messages.create({
