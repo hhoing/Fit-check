@@ -40,6 +40,10 @@ interface JobModalProps {
   onRequestDelete: (job: JobPosting) => void;
 }
 
+const STATUS_ACTION_LIST = STATUS_LIST.filter(
+  (status): status is Exclude<JobStatus, "관심"> => status !== "관심"
+);
+
 export default function JobModal({ job, onClose, onUpdate, onRequestDelete }: JobModalProps) {
   const [analyzing, setAnalyzing] = useState(false);
   const [refreshingInfo, setRefreshingInfo] = useState(false);
@@ -263,7 +267,7 @@ export default function JobModal({ job, onClose, onUpdate, onRequestDelete }: Jo
         <div className="px-5 sm:px-6 py-3 border-b border-gray-50">
           <p className="text-xs text-gray-400 mb-2">지원 상태</p>
           <div className="flex gap-1.5 flex-wrap">
-            {STATUS_LIST.map((s) => {
+            {STATUS_ACTION_LIST.map((s) => {
               const cfg = STATUS_CONFIG[s];
               const isActive = localJob.status === s;
               return (
