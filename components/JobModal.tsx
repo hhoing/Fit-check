@@ -25,6 +25,7 @@ import {
 } from "@/types";
 import { STATUS_LIST, STATUS_CONFIG } from "@/lib/constants";
 import { CURRENT_JOB_PARSER_VERSION } from "@/lib/jobParserVersion";
+import { formatDeadlineLong } from "@/lib/deadline";
 import { useToast } from "@/components/Toast";
 import GaugeChart from "./GaugeChart";
 import FitAnalysis from "./FitAnalysis";
@@ -298,15 +299,7 @@ export default function JobModal({ job, onClose, onUpdate }: JobModalProps) {
               <InfoRow
                 icon={<Calendar className="w-4 h-4" />}
                 label="마감일"
-                value={
-                  localJob.deadline
-                    ? new Date(localJob.deadline).toLocaleDateString("ko-KR", {
-                        year: "numeric",
-                        month: "long",
-                        day: "numeric",
-                      })
-                    : "마감일 미정"
-                }
+                value={formatDeadlineLong(localJob.deadline)}
               />
               <InfoRow
                 icon={<Wallet className="w-4 h-4" />}

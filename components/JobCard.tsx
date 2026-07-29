@@ -3,26 +3,15 @@
 import { Building2, Calendar, MapPin, NotebookPen } from "lucide-react";
 import { JobPosting } from "@/types";
 import { STATUS_CONFIG } from "@/lib/constants";
+import { formatDeadlineShort, getDeadlineBadge } from "@/lib/deadline";
 
 interface JobCardProps {
   job: JobPosting;
   onClick: () => void;
 }
 
-function calcDDay(deadline: string | null): { label: string; urgent: boolean } {
-  if (!deadline) return { label: "상시", urgent: false };
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const due = new Date(deadline);
-  due.setHours(0, 0, 0, 0);
-  const diff = Math.round((due.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-  if (diff < 0) return { label: "마감", urgent: false };
-  if (diff === 0) return { label: "D-Day", urgent: true };
-  return { label: `D-${diff}`, urgent: diff <= 3 };
-}
-
 export default function JobCard({ job, onClick }: JobCardProps) {
-  const { label: dDay, urgent } = calcDDay(job.deadline);
+  const { label: dDay, urgent } = getDeadlineBadge(job.deadline);
   const score = job.fitScore;
   const statusCfg = STATUS_CONFIG[job.status ?? "관심"];
   const hasJobMeta = [job.experienceLevel, job.employmentType, job.salary].some(
@@ -127,12 +116,7 @@ export default function JobCard({ job, onClick }: JobCardProps) {
           <div className="flex items-center gap-1 text-xs text-gray-400 min-w-0">
             <Calendar className="w-3.5 h-3.5 shrink-0" />
             <span className="truncate">
-              {job.deadline
-                ? new Date(job.deadline).toLocaleDateString("ko-KR", {
-                    month: "short",
-                    day: "numeric",
-                  })
-                : "미정"}
+              {formatDeadlineShort(job.deadline)}
             </span>
           </div>
         </div>

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 import { JobPositionDetail, ParseJobRequest, ParseJobResponse } from "@/types";
+import { ONGOING_DEADLINE_LABEL, isOngoingDeadline } from "@/lib/deadline";
 import { CURRENT_JOB_PARSER_VERSION } from "@/lib/jobParserVersion";
 
 const client = new Anthropic({
@@ -15,13 +16,14 @@ const PARSE_PROMPT = `당신은 채용 공고 파싱 전문가입니다.
 - 회사명, 직무명, 마감일, 근무지는 공고 본문/구조화 힌트에서 확인되는 값만 사용하세요.
 - 사람인, 잡코리아, 원티드, 점핏, 링크드인 같은 채용 플랫폼 이름을 회사명으로 쓰지 마세요.
 - 접수기간이 시작일~마감일 범위로 나오면 마지막 날짜를 deadline으로 쓰세요.
+- 마감일이 "상시채용", "상시", "채용시", "수시채용"이면 날짜로 추정하지 말고 deadline을 "상시채용"으로 쓰세요.
 - 근무지는 "근무지", "근무지역", "주소", "jobLocation"에 가까운 값을 우선하세요.
 - 확실하지 않은 값은 추측하지 말고 "미확인" 또는 null로 두세요.
 
 추출할 정보:
 - companyName: 회사명 (없으면 "미확인")
 - jobTitle: 직무명/포지션명 (없으면 "미확인")
-- deadline: 마감일 (YYYY-MM-DD 형식. 없거나 "상시" 등이면 null)
+- deadline: 마감일 (YYYY-MM-DD 형식. "상시채용", "상시", "채용시", "수시채용"이면 "상시채용". 없으면 null)
 - workplaceAddress: 근무지 주소 (없으면 "미확인")
 - requiredSpecs: 요구 스펙 목록 (string 배열, 없으면 빈 배열)
 - positionDetails: 모집분야가 여러 개인 경우 직무별 상세 목록. 각 항목은 { title, headcount, mainTasks, qualifications, preferredQualifications }
@@ -281,8 +283,8 @@ function normalizeSaraminApiDeadline(job: Record<string, unknown>): string | nul
   const closeName = getSaraminNamedValue(closeType);
   const closeCode = asRecord(closeType)?.code !== undefined ? String(asRecord(closeType)?.code) : "";
 
-  if (closeName && /채용시|상시|수시/i.test(closeName)) return null;
-  if (closeCode && ["2", "3", "4"].includes(closeCode)) return null;
+  if (closeName && /채용시|상시|수시/i.test(closeName)) return ONGOING_DEADLINE_LABEL;
+  if (closeCode && ["2", "3", "4"].includes(closeCode)) return ONGOING_DEADLINE_LABEL;
 
   const expirationDate = normalizeIsoDate(job["expiration-date"]);
   if (expirationDate !== undefined) return expirationDate;
@@ -1003,7 +1005,7 @@ function parseSaraminDescription(description: string | undefined): ParsedJobFiel
   return {
     companyName: companyName && !isJobBoardName(companyName) ? companyName : undefined,
     jobTitle,
-    deadline: deadlinePart ? normalizeIsoDate(deadlinePart) ?? extractDeadline(deadlinePart) : undefined,
+    deadline: deadlinePart ? extractDeadline(deadlinePart) ?? normalizeIsoDate(deadlinePart) : undefined,
     salary: salaryPart ? cleanSalaryValue(salaryPart.replace(/^(급여|연봉|월급)\s*[:：]?/, "")) : undefined,
     employmentType: employmentMatch ? Array.from(new Set(employmentMatch)).join(", ") : undefined,
     experienceLevel: normalizeExperienceLevel(experiencePart?.replace(/^경력\s*[:：]?/, "")),
@@ -1761,8 +1763,11 @@ function extractMetadataFromHtml(html: string): ParsedJobFields {
   const title = getMetaContent(html, "og:title") ?? getMetaContent(html, "title") ?? getTitleContent(html);
   const description =
     getMetaContent(html, "og:description") ?? getMetaContent(html, "description");
+  const visibleDeadline = extractDeadline([title, description].filter(Boolean).join("\n"));
   const base = {
     ...ld,
+    deadline:
+      visibleDeadline === ONGOING_DEADLINE_LABEL ? visibleDeadline : ld.deadline ?? visibleDeadline,
     title,
     description,
   };
@@ -2009,7 +2014,12 @@ function getUsefulLines(text: string): string[] {
 }
 
 function extractDeadline(text: string): string | null {
-  if (/상시|채용시|수시/i.test(text)) return null;
+  if (/(?:마감일|마감|접수기간|접수\s*기간|지원\s*기간|validThrough)\s*[:：]?\s*.{0,80}?(상시\s*채용|상시|채용\s*시|수시\s*채용|수시)/i.test(text)) {
+    return ONGOING_DEADLINE_LABEL;
+  }
+  if (/(상시\s*채용|채용\s*시\s*마감|채용\s*시까지|수시\s*채용)/i.test(text)) {
+    return ONGOING_DEADLINE_LABEL;
+  }
 
   const lines = text.split(/\r?\n/);
   const deadlineLines = lines.filter((line) => /(마감|접수|기간|지원\s*기간|validThrough)/i.test(line));
@@ -2235,11 +2245,16 @@ async function getFallbackParseResult(
   );
   const positionDetails = uniquePositionDetails(metadata.positionDetails ?? [], 8);
   const fallbackSpecs = extractRequiredSpecs(lines, metadata);
+  const extractedDeadline = extractDeadline(combinedText);
+  const deadline =
+    extractedDeadline === ONGOING_DEADLINE_LABEL
+      ? extractedDeadline
+      : metadata.deadline ?? extractedDeadline;
 
   return refineParseResultWorkplace({
     companyName: extractCompanyName(lines, metadata),
     jobTitle: extractJobTitle(lines, metadata),
-    deadline: metadata.deadline ?? extractDeadline(combinedText),
+    deadline,
     workplaceAddress: extractWorkplaceAddress(lines, metadata, combinedText),
     requiredSpecs: deriveRequiredSpecsFromSections(
       { qualifications, preferredQualifications },
@@ -2277,8 +2292,9 @@ function chooseField(value: unknown, fallback: string): string {
 }
 
 function chooseDeadline(value: unknown, fallback: string | null): string | null {
+  if (isOngoingDeadline(fallback)) return ONGOING_DEADLINE_LABEL;
   if (typeof value !== "string") return fallback;
-  const normalized = normalizeIsoDate(value) ?? extractDeadline(value);
+  const normalized = extractDeadline(value) ?? normalizeIsoDate(value);
   return normalized ?? fallback;
 }
 

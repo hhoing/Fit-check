@@ -4,6 +4,7 @@ import { useState, useCallback, useEffect, useRef } from "react";
 import { BriefcaseBusiness, CalendarDays, Clock3, Loader2, List, Plus, Target, X } from "lucide-react";
 import { JobPosting, JobStatus, ParseJobResponse } from "@/types";
 import { STATUS_LIST, STATUS_CONFIG } from "@/lib/constants";
+import { getDeadlineSortTime, isDeadlineExpired } from "@/lib/deadline";
 import { CURRENT_JOB_PARSER_VERSION } from "@/lib/jobParserVersion";
 import { useJobs } from "@/hooks/useJobs";
 import JobCard from "@/components/JobCard";
@@ -227,17 +228,15 @@ export default function DashboardPage() {
       if (scoreDiff !== 0) return scoreDiff;
     }
 
-    const aDeadline = a.deadline ? new Date(a.deadline).getTime() : Number.POSITIVE_INFINITY;
-    const bDeadline = b.deadline ? new Date(b.deadline).getTime() : Number.POSITIVE_INFINITY;
+    const aDeadline = getDeadlineSortTime(a.deadline);
+    const bDeadline = getDeadlineSortTime(b.deadline);
     return aDeadline - bDeadline;
   });
 
-  const activeJobs = sortedJobs.filter(
-    (j) => !j.deadline || new Date(j.deadline) >= today
-  );
-  const expiredJobs = sortedJobs.filter(
-    (j) => j.deadline && new Date(j.deadline) < today
-  );
+  const activeJobs = sortedJobs.filter((j) => !isDeadlineExpired(j.deadline, today));
+  const expiredJobs = sortedJobs.filter((j) => isDeadlineExpired(j.deadline, today));
+  const activeJobCount = jobs.filter((j) => !isDeadlineExpired(j.deadline, today)).length;
+  const expiredJobCount = jobs.filter((j) => isDeadlineExpired(j.deadline, today)).length;
 
   // 각 상태별 카운트 (필터 탭 숫자 배지용)
   const countByStatus = STATUS_LIST.reduce(
@@ -261,7 +260,7 @@ export default function DashboardPage() {
           </div>
           <div className="flex items-center gap-3">
             <span className="hidden sm:block text-xs text-gray-400">
-              {jobs.filter((j) => !j.deadline || new Date(j.deadline) >= today).length}개 진행 중
+              {activeJobCount}개 진행 중
             </span>
             <button
               onClick={() => setShowInput((v) => !v)}
@@ -312,12 +311,12 @@ export default function DashboardPage() {
           <StatCard label="전체 공고" value={jobs.length} color="text-gray-700" />
           <StatCard
             label="진행 중"
-            value={jobs.filter((j) => !j.deadline || new Date(j.deadline) >= today).length}
+            value={activeJobCount}
             color="text-blue-500"
           />
           <StatCard
             label="마감됨"
-            value={jobs.filter((j) => j.deadline && new Date(j.deadline) < today).length}
+            value={expiredJobCount}
             color="text-gray-400"
           />
         </div>

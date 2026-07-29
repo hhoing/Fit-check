@@ -10,7 +10,7 @@ export interface JobPosting {
   id: string;
   companyName: string;
   jobTitle: string;
-  deadline: string | null; // ISO date string or null
+  deadline: string | null; // ISO date string, "상시채용", or null
   workplaceAddress: string;
   requiredSpecs: string[];
   positionDetails?: JobPositionDetail[];

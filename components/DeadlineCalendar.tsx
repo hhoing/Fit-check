@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { CalendarDays, ChevronLeft, ChevronRight } from "lucide-react";
 import { JobPosting } from "@/types";
+import { parseDeadlineDate } from "@/lib/deadline";
 
 interface DeadlineCalendarProps {
   jobs: JobPosting[];
@@ -39,8 +40,9 @@ export default function DeadlineCalendar({ jobs, onSelectJob }: DeadlineCalendar
 
   const jobsByDate = useMemo(() => {
     return jobs.reduce((acc, job) => {
-      if (!job.deadline) return acc;
-      acc[job.deadline] = [...(acc[job.deadline] ?? []), job];
+      const deadline = job.deadline;
+      if (!deadline || !parseDeadlineDate(deadline)) return acc;
+      acc[deadline] = [...(acc[deadline] ?? []), job];
       return acc;
     }, {} as Record<string, JobPosting[]>);
   }, [jobs]);
