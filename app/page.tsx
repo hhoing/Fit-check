@@ -9,6 +9,7 @@ import {
   Loader2,
   List,
   Plus,
+  Star,
   Target,
   X,
 } from "lucide-react";
@@ -27,8 +28,12 @@ const CANONICAL_SITE_ORIGIN =
   process.env.NEXT_PUBLIC_SITE_URL ?? "https://hhoing-fit-check.vercel.app";
 const CANONICAL_SITE_HOST = new URL(CANONICAL_SITE_ORIGIN).host;
 
-type FilterTab = "전체" | JobStatus;
-const FILTER_TABS: FilterTab[] = ["전체", ...STATUS_LIST];
+type StatusFilterTab = Exclude<JobStatus, "관심">;
+type FilterTab = "전체" | "즐겨찾기" | StatusFilterTab;
+const STATUS_FILTER_TABS = STATUS_LIST.filter(
+  (status): status is StatusFilterTab => status !== "관심"
+);
+const FILTER_TABS: FilterTab[] = ["전체", "즐겨찾기", ...STATUS_FILTER_TABS];
 type SortMode = "deadline" | "fitScore";
 type ViewMode = "list" | "calendar";
 
@@ -260,6 +265,8 @@ export default function DashboardPage() {
   const filteredJobs =
     activeFilter === "전체"
       ? jobs
+      : activeFilter === "즐겨찾기"
+      ? jobs.filter((j) => j.isFavorite)
       : jobs.filter((j) => j.status === activeFilter);
 
   const sortedJobs = [...filteredJobs].sort((a, b) => {
@@ -277,6 +284,11 @@ export default function DashboardPage() {
   const expiredJobs = sortedJobs.filter((j) => isDeadlineExpired(j.deadline, j.deadlineTime, now));
   const activeJobCount = jobs.filter((j) => !isDeadlineExpired(j.deadline, j.deadlineTime, now)).length;
   const expiredJobCount = jobs.filter((j) => isDeadlineExpired(j.deadline, j.deadlineTime, now)).length;
+  const favoriteJobCount = jobs.filter((j) => j.isFavorite).length;
+  const emptyFilterMessage =
+    activeFilter === "즐겨찾기"
+      ? "즐겨찾기한 공고가 없습니다."
+      : `'${activeFilter}' 상태의 공고가 없습니다.`;
 
   // 각 상태별 카운트 (필터 탭 숫자 배지용)
   const countByStatus = STATUS_LIST.reduce(
@@ -366,8 +378,13 @@ export default function DashboardPage() {
           {FILTER_TABS.map((tab) => {
             const isActive = activeFilter === tab;
             const count =
-              tab === "전체" ? jobs.length : countByStatus[tab as JobStatus] ?? 0;
-            const cfg = tab !== "전체" ? STATUS_CONFIG[tab as JobStatus] : null;
+              tab === "전체"
+                ? jobs.length
+                : tab === "즐겨찾기"
+                ? favoriteJobCount
+                : countByStatus[tab] ?? 0;
+            const cfg =
+              tab !== "전체" && tab !== "즐겨찾기" ? STATUS_CONFIG[tab] : null;
 
             return (
               <button
@@ -377,12 +394,17 @@ export default function DashboardPage() {
                   transition-all border
                   ${
                     isActive
-                      ? cfg
+                      ? tab === "즐겨찾기"
+                        ? "bg-amber-50 text-amber-600 border-amber-100 ring-1 ring-amber-200"
+                        : cfg
                         ? `${cfg.bg} ${cfg.text} border-transparent ring-1 ${cfg.ring}`
                         : "bg-blue-500 text-white border-transparent"
                       : "bg-white text-gray-500 border-gray-100 hover:border-blue-200 hover:text-blue-500"
                   }`}
               >
+                {tab === "즐겨찾기" && (
+                  <Star className="h-3.5 w-3.5" fill={isActive ? "currentColor" : "none"} />
+                )}
                 {tab}
                 <span
                   className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full
@@ -506,7 +528,7 @@ export default function DashboardPage() {
         {filteredJobs.length === 0 && jobs.length > 0 && (
           <div className="text-center py-16 space-y-2">
             <p className="text-gray-400 text-sm">
-              &apos;{activeFilter}&apos; 상태의 공고가 없습니다.
+              {emptyFilterMessage}
             </p>
             <button
               onClick={() => setActiveFilter("전체")}
