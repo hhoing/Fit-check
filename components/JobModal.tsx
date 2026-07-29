@@ -120,6 +120,7 @@ export default function JobModal({ job, onClose, onUpdate }: JobModalProps) {
         companyName: data.companyName,
         jobTitle: data.jobTitle,
         deadline: data.deadline,
+        deadlineTime: data.deadlineTime ?? null,
         workplaceAddress: data.workplaceAddress,
         requiredSpecs: data.requiredSpecs,
         positionDetails: data.positionDetails ?? [],
@@ -299,7 +300,7 @@ export default function JobModal({ job, onClose, onUpdate }: JobModalProps) {
               <InfoRow
                 icon={<Calendar className="w-4 h-4" />}
                 label="마감일"
-                value={formatDeadlineLong(localJob.deadline)}
+                value={formatDeadlineLong(localJob.deadline, localJob.deadlineTime)}
               />
               <InfoRow
                 icon={<Wallet className="w-4 h-4" />}

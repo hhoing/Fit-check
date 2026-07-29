@@ -11,7 +11,7 @@ interface JobCardProps {
 }
 
 export default function JobCard({ job, onClick }: JobCardProps) {
-  const { label: dDay, urgent } = getDeadlineBadge(job.deadline);
+  const { label: dDay, urgent } = getDeadlineBadge(job.deadline, job.deadlineTime);
   const score = job.fitScore;
   const statusCfg = STATUS_CONFIG[job.status ?? "관심"];
   const hasJobMeta = [job.experienceLevel, job.employmentType, job.salary].some(
@@ -116,7 +116,7 @@ export default function JobCard({ job, onClick }: JobCardProps) {
           <div className="flex items-center gap-1 text-xs text-gray-400 min-w-0">
             <Calendar className="w-3.5 h-3.5 shrink-0" />
             <span className="truncate">
-              {formatDeadlineShort(job.deadline)}
+              {formatDeadlineShort(job.deadline, job.deadlineTime)}
             </span>
           </div>
         </div>

@@ -9,7 +9,8 @@
 - `id`: 공고 ID
 - `companyName`: 회사명
 - `jobTitle`: 직무명
-- `deadline`: 마감일
+- `deadline`: 마감일, `YYYY-MM-DD`, `상시채용`, 또는 `null`
+- `deadlineTime`: 마감 시간, `HH:mm` 또는 `null`
 - `workplaceAddress`: 근무지
 - `requiredSpecs`: 요구 스펙 목록
 - `rawText`: 원본 공고 텍스트

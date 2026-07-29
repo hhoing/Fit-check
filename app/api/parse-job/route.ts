@@ -13,10 +13,12 @@ const PARSE_PROMPT = `당신은 채용 공고 파싱 전문가입니다.
 다른 설명 없이 JSON만 출력하세요.
 
 중요 원칙:
-- 회사명, 직무명, 마감일, 근무지는 공고 본문/구조화 힌트에서 확인되는 값만 사용하세요.
+- 회사명, 직무명, 마감일, 마감시간, 근무지는 공고 본문/구조화 힌트에서 확인되는 값만 사용하세요.
 - 사람인, 잡코리아, 원티드, 점핏, 링크드인 같은 채용 플랫폼 이름을 회사명으로 쓰지 마세요.
 - 접수기간이 시작일~마감일 범위로 나오면 마지막 날짜를 deadline으로 쓰세요.
+- 접수기간이 시작일~마감일 범위로 나오고 마지막 날짜 옆에 시간이 있으면 deadlineTime으로 쓰세요.
 - 마감일이 "상시채용", "상시", "채용시", "수시채용"이면 날짜로 추정하지 말고 deadline을 "상시채용"으로 쓰세요.
+- deadlineTime은 실제 마감 시간이 확인될 때만 HH:mm 형식으로 쓰고, 없으면 null로 두세요. 근무시간을 마감시간으로 쓰지 마세요.
 - 근무지는 "근무지", "근무지역", "주소", "jobLocation"에 가까운 값을 우선하세요.
 - 확실하지 않은 값은 추측하지 말고 "미확인" 또는 null로 두세요.
 
@@ -24,6 +26,7 @@ const PARSE_PROMPT = `당신은 채용 공고 파싱 전문가입니다.
 - companyName: 회사명 (없으면 "미확인")
 - jobTitle: 직무명/포지션명 (없으면 "미확인")
 - deadline: 마감일 (YYYY-MM-DD 형식. "상시채용", "상시", "채용시", "수시채용"이면 "상시채용". 없으면 null)
+- deadlineTime: 마감 시간 (HH:mm 형식. 없으면 null)
 - workplaceAddress: 근무지 주소 (없으면 "미확인")
 - requiredSpecs: 요구 스펙 목록 (string 배열, 없으면 빈 배열)
 - positionDetails: 모집분야가 여러 개인 경우 직무별 상세 목록. 각 항목은 { title, headcount, mainTasks, qualifications, preferredQualifications }
@@ -40,6 +43,7 @@ const PARSE_PROMPT = `당신은 채용 공고 파싱 전문가입니다.
   "companyName": "주식회사 예시",
   "jobTitle": "프론트엔드 개발자",
   "deadline": "2024-12-31",
+  "deadlineTime": "18:00",
   "workplaceAddress": "서울시 강남구 테헤란로 123",
   "requiredSpecs": ["React 2년 이상", "TypeScript 필수", "Git 협업 경험"],
   "positionDetails": [],
@@ -56,6 +60,7 @@ interface ParsedJobFields {
   companyName?: string;
   jobTitle?: string;
   deadline?: string | null;
+  deadlineTime?: string | null;
   workplaceAddress?: string;
   requiredSpecs?: string[];
   positionDetails?: JobPositionDetail[];
@@ -302,6 +307,29 @@ function normalizeSaraminApiDeadline(job: Record<string, unknown>): string | nul
   return toKoreaDateString(date) ?? undefined;
 }
 
+function normalizeSaraminApiDeadlineTime(job: Record<string, unknown>): string | null | undefined {
+  const closeType = job["close-type"];
+  const closeName = getSaraminNamedValue(closeType);
+  const closeCode = asRecord(closeType)?.code !== undefined ? String(asRecord(closeType)?.code) : "";
+
+  if (closeName && /채용시|상시|수시/i.test(closeName)) return null;
+  if (closeCode && ["2", "3", "4"].includes(closeCode)) return null;
+
+  const expirationTime = normalizeDeadlineTimeValue(getSaraminNamedValue(job["expiration-date"]));
+  if (expirationTime !== undefined) return expirationTime;
+
+  const timestampRaw = job["expiration-timestamp"];
+  const timestamp =
+    typeof timestampRaw === "number"
+      ? timestampRaw
+      : typeof timestampRaw === "string"
+      ? Number(timestampRaw)
+      : Number.NaN;
+
+  if (!Number.isFinite(timestamp) || timestamp <= 0) return undefined;
+  return toKoreaTimeString(new Date(timestamp * 1000)) ?? undefined;
+}
+
 function parseSaraminApiJob(job: Record<string, unknown>): ParsedJobFields {
   const company = asRecord(job.company);
   const companyDetail = asRecord(company?.detail);
@@ -322,6 +350,7 @@ function parseSaraminApiJob(job: Record<string, unknown>): ParsedJobFields {
     companyName: getSaraminNamedValue(companyDetail?.name ?? company?.name),
     jobTitle: getSaraminNamedValue(position?.title),
     deadline: normalizeSaraminApiDeadline(job),
+    deadlineTime: normalizeSaraminApiDeadlineTime(job),
     workplaceAddress: cleanSaraminApiLocation(getSaraminNamedValue(location)),
     requiredSpecs: keywordSpecs.length > 0 ? keywordSpecs : undefined,
     salary: cleanSalaryValue(getSaraminNamedValue(job.salary) ?? ""),
@@ -1006,6 +1035,9 @@ function parseSaraminDescription(description: string | undefined): ParsedJobFiel
     companyName: companyName && !isJobBoardName(companyName) ? companyName : undefined,
     jobTitle,
     deadline: deadlinePart ? extractDeadline(deadlinePart) ?? normalizeIsoDate(deadlinePart) : undefined,
+    deadlineTime: deadlinePart
+      ? extractDeadlineTime(deadlinePart) ?? normalizeDeadlineTimeValue(deadlinePart)
+      : undefined,
     salary: salaryPart ? cleanSalaryValue(salaryPart.replace(/^(급여|연봉|월급)\s*[:：]?/, "")) : undefined,
     employmentType: employmentMatch ? Array.from(new Set(employmentMatch)).join(", ") : undefined,
     experienceLevel: normalizeExperienceLevel(experiencePart?.replace(/^경력\s*[:：]?/, "")),
@@ -1737,6 +1769,72 @@ function normalizeDeadlineDateValue(value: unknown): string | null | undefined {
   return undefined;
 }
 
+function toTimeString(hours: number, minutes: number): string | null {
+  if (hours === 24 && minutes === 0) return "23:59";
+  if (hours < 0 || hours > 23 || minutes < 0 || minutes > 59) return null;
+
+  return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
+}
+
+function normalizeMeridiemHour(hour: number, meridiem: string | undefined): number {
+  const normalized = meridiem?.toLowerCase();
+  if (!normalized) return hour;
+
+  if (normalized === "오전" || normalized === "am") {
+    return hour === 12 ? 0 : hour;
+  }
+
+  if (normalized === "오후" || normalized === "pm") {
+    return hour === 12 ? 12 : hour + 12;
+  }
+
+  return hour;
+}
+
+function toKoreaTimeString(date: Date): string | null {
+  if (Number.isNaN(date.getTime())) return null;
+
+  const parts = new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Asia/Seoul",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(date);
+  const valueByType = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+
+  return toTimeString(Number(valueByType.hour), Number(valueByType.minute));
+}
+
+function normalizeDeadlineTimeValue(value: unknown): string | null | undefined {
+  if (typeof value !== "string") return undefined;
+  if (/자정|밤\s*12\s*시/.test(value)) return "00:00";
+
+  const isoDateTime = value.match(
+    /(20\d{2}-\d{1,2}-\d{1,2}T\d{1,2}:\d{2}(?::\d{2})?(?:\.\d+)?(?:Z|[+-]\d{2}:?\d{2})?)/
+  );
+  if (isoDateTime?.[1]) {
+    const isoText = isoDateTime[1].replace(/([+-]\d{2})(\d{2})$/, "$1:$2");
+    if (/[zZ]|[+-]\d{2}:\d{2}$/.test(isoText)) {
+      return toKoreaTimeString(new Date(isoText)) ?? undefined;
+    }
+
+    const localTime = isoText.match(/T(\d{1,2}):(\d{2})/);
+    if (localTime) return toTimeString(Number(localTime[1]), Number(localTime[2]));
+  }
+
+  const timeMatches = [
+    ...value.matchAll(/(?:(오전|오후|AM|PM)\s*)?(\d{1,2})\s*(?::|시(?!간))\s*(\d{1,2})?\s*(?:분)?/gi),
+  ];
+  for (const match of timeMatches.reverse()) {
+    const hour = normalizeMeridiemHour(Number(match[2]), match[1]);
+    const minute = match[3] ? Number(match[3]) : 0;
+    const time = toTimeString(hour, minute);
+    if (time) return time;
+  }
+
+  return undefined;
+}
+
 function extractJobPostingFromLd(html: string): ParsedJobFields {
   const records = parseLdJsonBlocks(html).flatMap(flattenLd);
   const job = records.find((record) => ldTypeIncludes(record, "JobPosting"));
@@ -1761,6 +1859,7 @@ function extractJobPostingFromLd(html: string): ParsedJobFields {
     companyName: stringifyLdValue(hiringOrganization?.name),
     jobTitle: stringifyLdValue(job.title),
     deadline: normalizeIsoDate(job.validThrough),
+    deadlineTime: normalizeDeadlineTimeValue(job.validThrough),
     workplaceAddress: address,
     requiredSpecs: deriveRequiredSpecsFromSections({ qualifications }),
     mainTasks,
@@ -1777,9 +1876,11 @@ function extractMetadataFromHtml(html: string): ParsedJobFields {
   const description =
     getMetaContent(html, "og:description") ?? getMetaContent(html, "description");
   const visibleDeadline = extractDeadline([title, description].filter(Boolean).join("\n"));
+  const visibleDeadlineTime = extractDeadlineTime([title, description].filter(Boolean).join("\n"));
   const base = {
     ...ld,
     deadline: visibleDeadline ?? ld.deadline,
+    deadlineTime: visibleDeadlineTime ?? ld.deadlineTime,
     title,
     description,
   };
@@ -2155,6 +2256,51 @@ function extractDeadline(text: string): string | null {
   return null;
 }
 
+function extractDeadlineTimeFromSegment(segment: string): string | null {
+  const candidate = segment.slice(0, 160);
+  return normalizeDeadlineTimeValue(candidate) ?? null;
+}
+
+function extractDeadlineTime(text: string): string | null {
+  const lines = text
+    .split(/\r?\n/)
+    .map(cleanLine)
+    .filter(Boolean);
+
+  for (const line of lines) {
+    const deadlineSegments = getSegmentsAfterLabel(
+      line,
+      /(?:마감일(?!\s*은)|접수\s*마감(?:일)?|지원\s*마감(?:일)?|지원마감(?:일)?)\s*[:：]?/gi
+    ).reverse();
+    for (const segment of deadlineSegments) {
+      const deadlineTime = extractDeadlineTimeFromSegment(segment);
+      if (deadlineTime) return deadlineTime;
+    }
+  }
+
+  for (const line of lines) {
+    const validThroughSegments = getSegmentsAfterLabel(line, /validThrough\s*[:：]?/gi);
+    for (const segment of validThroughSegments) {
+      const deadlineTime = normalizeDeadlineTimeValue(segment);
+      if (deadlineTime) return deadlineTime;
+    }
+  }
+
+  for (const line of lines) {
+    const rangeSegments = getSegmentsAfterLabel(
+      line,
+      /(?:접수\s*기간|접수기간|지원\s*기간|지원기간)\s*[:：]?/gi
+    );
+    for (const segment of rangeSegments) {
+      if (!/[~～]|부터|까지/.test(segment)) continue;
+      const deadlineTime = extractDeadlineTimeFromSegment(segment);
+      if (deadlineTime) return deadlineTime;
+    }
+  }
+
+  return null;
+}
+
 function extractCompanyName(lines: string[], metadata: ParsedJobFields): string {
   if (metadata.companyName) return metadata.companyName;
 
@@ -2362,11 +2508,17 @@ async function getFallbackParseResult(
   const fallbackSpecs = extractRequiredSpecs(lines, metadata);
   const extractedDeadline = extractDeadline(combinedText);
   const deadline = metadata.deadline ?? extractedDeadline;
+  const extractedDeadlineTime = extractDeadlineTime(combinedText);
+  const deadlineTime =
+    deadline && !isOngoingDeadline(deadline)
+      ? metadata.deadlineTime ?? extractedDeadlineTime ?? null
+      : null;
 
   return refineParseResultWorkplace({
     companyName: extractCompanyName(lines, metadata),
     jobTitle: extractJobTitle(lines, metadata),
     deadline,
+    deadlineTime,
     workplaceAddress: extractWorkplaceAddress(lines, metadata, combinedText),
     requiredSpecs: deriveRequiredSpecsFromSections(
       { qualifications, preferredQualifications },
@@ -2411,6 +2563,18 @@ function chooseDeadline(value: unknown, fallback: string | null): string | null 
     extractDeadline(value) ??
     (isOngoingDeadline(value) && !fallback ? ONGOING_DEADLINE_LABEL : null);
   return normalized ?? fallback;
+}
+
+function chooseDeadlineTime(
+  value: unknown,
+  fallback: string | null | undefined,
+  deadline: string | null
+): string | null {
+  if (!deadline || isOngoingDeadline(deadline)) return null;
+  if (typeof value !== "string") return fallback ?? null;
+
+  const normalized = normalizeDeadlineTimeValue(value) ?? extractDeadlineTime(value);
+  return normalized ?? fallback ?? null;
 }
 
 function chooseSpecs(value: unknown, fallback: string[]): string[] {
@@ -2491,6 +2655,17 @@ function chooseTrustedDeadline(
 ): string | null {
   if (trusted) return fallback;
   return chooseDeadline(value, fallback);
+}
+
+function chooseTrustedDeadlineTime(
+  trusted: boolean,
+  value: unknown,
+  fallback: string | null | undefined,
+  deadline: string | null
+): string | null {
+  if (!deadline || isOngoingDeadline(deadline)) return null;
+  if (trusted) return fallback ?? null;
+  return chooseDeadlineTime(value, fallback, deadline);
 }
 
 function chooseTrustedExperienceLevel(
@@ -2588,11 +2763,18 @@ export async function POST(req: NextRequest) {
         chooseSpecs(parsed.requiredSpecs, fallback.requiredSpecs)
       );
       const hasTrustedSaraminApi = Boolean(metadata.saraminApiUsed);
+      const deadline = chooseTrustedDeadline(hasTrustedSaraminApi, parsed.deadline, fallback.deadline);
 
       const result = await refineParseResultWorkplace({
         companyName: chooseTrustedField(hasTrustedSaraminApi, parsed.companyName, fallback.companyName),
         jobTitle: chooseTrustedField(hasTrustedSaraminApi, parsed.jobTitle, fallback.jobTitle),
-        deadline: chooseTrustedDeadline(hasTrustedSaraminApi, parsed.deadline, fallback.deadline),
+        deadline,
+        deadlineTime: chooseTrustedDeadlineTime(
+          hasTrustedSaraminApi,
+          parsed.deadlineTime,
+          fallback.deadlineTime,
+          deadline
+        ),
         workplaceAddress: chooseTrustedField(
           hasTrustedSaraminApi,
           parsed.workplaceAddress,

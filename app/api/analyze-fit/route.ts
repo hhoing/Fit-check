@@ -104,6 +104,7 @@ function normalizeJobPosting(jobPosting: JobPosting): JobPosting {
     companyName: jobPosting.companyName ?? "미확인",
     jobTitle: jobPosting.jobTitle ?? "미확인",
     deadline: jobPosting.deadline ?? null,
+    deadlineTime: jobPosting.deadlineTime ?? null,
     workplaceAddress: jobPosting.workplaceAddress ?? "미확인",
     requiredSpecs: jobPosting.requiredSpecs ?? [],
     positionDetails: (jobPosting.positionDetails ?? []).map((detail) => ({

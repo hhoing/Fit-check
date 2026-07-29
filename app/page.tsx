@@ -43,6 +43,7 @@ function mergeParsedJob(
     companyName: data.companyName,
     jobTitle: data.jobTitle,
     deadline: data.deadline,
+    deadlineTime: data.deadlineTime ?? null,
     workplaceAddress: data.workplaceAddress,
     requiredSpecs: data.requiredSpecs,
     positionDetails: data.positionDetails ?? [],
@@ -97,6 +98,7 @@ export default function DashboardPage() {
         companyName: data.companyName,
         jobTitle: data.jobTitle,
         deadline: data.deadline,
+        deadlineTime: data.deadlineTime ?? null,
         workplaceAddress: data.workplaceAddress,
         requiredSpecs: data.requiredSpecs,
         positionDetails: data.positionDetails ?? [],
@@ -214,8 +216,7 @@ export default function DashboardPage() {
   );
 
   // 상태 필터 + D-Day 기반 분리
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
+  const now = new Date();
 
   const filteredJobs =
     activeFilter === "전체"
@@ -228,15 +229,15 @@ export default function DashboardPage() {
       if (scoreDiff !== 0) return scoreDiff;
     }
 
-    const aDeadline = getDeadlineSortTime(a.deadline);
-    const bDeadline = getDeadlineSortTime(b.deadline);
+    const aDeadline = getDeadlineSortTime(a.deadline, a.deadlineTime);
+    const bDeadline = getDeadlineSortTime(b.deadline, b.deadlineTime);
     return aDeadline - bDeadline;
   });
 
-  const activeJobs = sortedJobs.filter((j) => !isDeadlineExpired(j.deadline, today));
-  const expiredJobs = sortedJobs.filter((j) => isDeadlineExpired(j.deadline, today));
-  const activeJobCount = jobs.filter((j) => !isDeadlineExpired(j.deadline, today)).length;
-  const expiredJobCount = jobs.filter((j) => isDeadlineExpired(j.deadline, today)).length;
+  const activeJobs = sortedJobs.filter((j) => !isDeadlineExpired(j.deadline, j.deadlineTime, now));
+  const expiredJobs = sortedJobs.filter((j) => isDeadlineExpired(j.deadline, j.deadlineTime, now));
+  const activeJobCount = jobs.filter((j) => !isDeadlineExpired(j.deadline, j.deadlineTime, now)).length;
+  const expiredJobCount = jobs.filter((j) => isDeadlineExpired(j.deadline, j.deadlineTime, now)).length;
 
   // 각 상태별 카운트 (필터 탭 숫자 배지용)
   const countByStatus = STATUS_LIST.reduce(

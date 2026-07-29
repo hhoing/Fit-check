@@ -11,6 +11,7 @@ export interface JobPosting {
   companyName: string;
   jobTitle: string;
   deadline: string | null; // ISO date string, "상시채용", or null
+  deadlineTime: string | null; // HH:mm string or null
   workplaceAddress: string;
   requiredSpecs: string[];
   positionDetails?: JobPositionDetail[];
@@ -79,6 +80,7 @@ export interface ParseJobResponse {
   companyName: string;
   jobTitle: string;
   deadline: string | null;
+  deadlineTime?: string | null;
   workplaceAddress: string;
   requiredSpecs: string[];
   positionDetails?: JobPositionDetail[];

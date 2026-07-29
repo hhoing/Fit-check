@@ -122,8 +122,9 @@ export default function DeadlineCalendar({ jobs, onSelectJob }: DeadlineCalendar
                       key={job.id}
                       onClick={() => onSelectJob(job)}
                       className="block w-full truncate rounded-md bg-blue-50 px-1.5 py-1 text-left text-[11px] font-medium text-blue-700 hover:bg-blue-100"
-                      title={`${job.companyName} - ${job.jobTitle}`}
+                      title={`${job.deadlineTime ? `${job.deadlineTime} ` : ""}${job.companyName} - ${job.jobTitle}`}
                     >
+                      {job.deadlineTime ? `${job.deadlineTime} ` : ""}
                       {job.companyName} - {job.jobTitle}
                     </button>
                   ))}

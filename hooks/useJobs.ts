@@ -25,6 +25,7 @@ function normalizeJob(job: JobPosting): JobPosting {
   return {
     ...job,
     status: job.status ?? "관심",
+    deadlineTime: job.deadlineTime ?? null,
     memo: job.memo ?? "",
     salary: job.salary ?? "미확인",
     employmentType: job.employmentType ?? "미확인",
