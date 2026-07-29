@@ -1056,6 +1056,7 @@ const KOREAN_REGION_PATTERN =
 function cleanWorkplaceAddressValue(value: string): string | undefined {
   const cleaned = cleanSaraminValue(value)
     .replace(/^(?:근무지\s*주소|근무지주소|근무지역|근무지|주소|위치)\s*(?:\([^)]+\))?\s*[:：]?\s*/i, "")
+    .replace(/^(?:본사|서울\s*(?:본사|지점|사업장)?|[가-힣]+지점)\s*[:：-]\s*/i, "")
     .replace(/\s*[•ㆍ·|｜]?\s*(근무요일\/시간|근무요일|근무시간|근무조건|근무상세|복지 및 혜택|혜택 및 복지|복리후생|리프레시|접수기간|접수방법|담당자|채용담당자|사람인 공고|지도|길찾기|상세보기).*$/i, "")
     .replace(/\s+/g, " ")
     .replace(/[•ㆍ·|｜\s]+$/g, "")
@@ -1072,6 +1073,10 @@ function scoreWorkplaceAddress(value: string): number {
   if (/(로|길|대로|번길)\s*\d/.test(value)) score += 80;
   if (/(읍|면|동|리)\s*\d|번지/.test(value)) score += 45;
   if (/(빌딩|타워|센터|사옥|캠퍼스|공장|층|호)/.test(value)) score += 35;
+  if (/^(?:본사|서울(?:본사|지점|사업장)?)\s*[:：-]?\s*서울/.test(value)) score += 180;
+  if (/^서울(?:특별시)?\s/.test(value)) score += 120;
+  if (/서울(?:본사|지점|사업장)/.test(value)) score += 70;
+  if (/울산지점/.test(value) && /서울/.test(value)) score -= 50;
   if (/(전체|인근|부근|일대)/.test(value)) score -= 60;
   if (value.length < 8) score -= 40;
   return score;
@@ -1092,6 +1097,13 @@ function extractSaraminDetailAddress(detailText: string): string | undefined {
   const candidates: string[] = [];
 
   if (labeledMatch?.[1]) candidates.push(labeledMatch[1]);
+
+  const branchAddressMatches = [
+    ...detailText.matchAll(
+      /(?:^|\n)\s*[-ㆍ·•]?\s*((?:본사|서울(?:본사|지점|사업장)?|울산지점|[가-힣]+지점)\s*[:：-]\s*(?:서울|경기|인천|부산|대전|대구|광주|울산|세종|제주|강원|충북|충남|전북|전남|경북|경남)[^\n]+)/g
+    ),
+  ];
+  candidates.push(...branchAddressMatches.map((match) => match[1]));
 
   const addressLikeLines = detailText
     .split(/\r?\n/)
@@ -2204,6 +2216,18 @@ function getSegmentsAfterLabel(line: string, pattern: RegExp): string[] {
   });
 }
 
+function getSegmentsAfterLabelWithFollowingLines(
+  lines: string[],
+  index: number,
+  pattern: RegExp,
+  followingLineCount = 4
+): string[] {
+  const currentLine = lines[index] ?? "";
+  const nextLines = lines.slice(index + 1, index + 1 + followingLineCount).join(" ");
+
+  return getSegmentsAfterLabel([currentLine, nextLines].filter(Boolean).join(" "), pattern);
+}
+
 function extractDeadlineFromSegment(segment: string): string | null {
   const candidate = segment.slice(0, 160);
   const date =
@@ -2222,9 +2246,10 @@ function extractDeadline(text: string): string | null {
     .map(cleanLine)
     .filter(Boolean);
 
-  for (const line of lines) {
-    const deadlineSegments = getSegmentsAfterLabel(
-      line,
+  for (let lineIndex = 0; lineIndex < lines.length; lineIndex += 1) {
+    const deadlineSegments = getSegmentsAfterLabelWithFollowingLines(
+      lines,
+      lineIndex,
       /(?:마감일(?!\s*은)|접수\s*마감(?:일)?|지원\s*마감(?:일)?|지원마감(?:일)?)\s*[:：]?/gi
     ).reverse();
     for (const segment of deadlineSegments) {
@@ -2267,9 +2292,10 @@ function extractDeadlineTime(text: string): string | null {
     .map(cleanLine)
     .filter(Boolean);
 
-  for (const line of lines) {
-    const deadlineSegments = getSegmentsAfterLabel(
-      line,
+  for (let lineIndex = 0; lineIndex < lines.length; lineIndex += 1) {
+    const deadlineSegments = getSegmentsAfterLabelWithFollowingLines(
+      lines,
+      lineIndex,
       /(?:마감일(?!\s*은)|접수\s*마감(?:일)?|지원\s*마감(?:일)?|지원마감(?:일)?)\s*[:：]?/gi
     ).reverse();
     for (const segment of deadlineSegments) {

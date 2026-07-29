@@ -1,1 +1,1 @@
-export const CURRENT_JOB_PARSER_VERSION = 14;
+export const CURRENT_JOB_PARSER_VERSION = 15;
