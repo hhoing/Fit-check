@@ -168,7 +168,7 @@ export default function RouteMap({
         const map = new maps.Map(container, {
           center: toLatLng(maps, center),
           zoom: 11,
-          zoomControl: false,
+          zoomControl: true,
         });
         const bounds = new maps.LatLngBounds();
         const linePath = displayPath.map((point) => toLatLng(maps, point));
