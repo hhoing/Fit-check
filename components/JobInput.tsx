@@ -41,7 +41,7 @@ export default function JobInput({ onParsed }: JobInputProps) {
       setError(null);
       toast(
         data.parserMode === "fallback"
-          ? "공고가 등록되었습니다. API 키가 없어 기본 추출 결과로 저장했어요."
+          ? "공고가 등록되었습니다. 기본 추출 결과로 저장했어요."
           : "공고가 등록되었습니다. AI 적합도 분석이 시작됩니다.",
         "success"
       );
