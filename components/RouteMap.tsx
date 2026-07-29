@@ -14,7 +14,8 @@ interface RouteMapProps {
 }
 
 type NaverMapInstance = {
-  fitBounds: (bounds: unknown) => void;
+  fitBounds: (bounds: unknown, options?: Record<string, unknown>) => void;
+  setSize: (size: unknown) => void;
 };
 
 type NaverBounds = {
@@ -25,8 +26,12 @@ type NaverMapsNamespace = {
   Map: new (element: HTMLElement, options: Record<string, unknown>) => NaverMapInstance;
   LatLng: new (lat: number, lng: number) => unknown;
   LatLngBounds: new () => NaverBounds;
+  Size: new (width: number, height: number) => unknown;
   Marker: new (options: Record<string, unknown>) => unknown;
   Polyline: new (options: Record<string, unknown>) => unknown;
+  Event: {
+    once: (target: unknown, eventName: string, listener: () => void) => void;
+  };
   PointingIcon?: {
     OPEN_ARROW?: string;
   };
@@ -179,6 +184,10 @@ export default function RouteMap({
           center: toLatLng(maps, center),
           zoom: 11,
           zoomControl: true,
+          draggable: true,
+          scrollWheel: true,
+          pinchZoom: true,
+          keyboardShortcuts: true,
         });
         const bounds = new maps.LatLngBounds();
         const linePath = displayPath.map((point) => toLatLng(maps, point));
@@ -187,33 +196,43 @@ export default function RouteMap({
         bounds.extend(toLatLng(maps, destinationPoint));
         linePath.forEach((point) => bounds.extend(point));
 
-        new maps.Polyline({
-          map,
-          path: linePath,
-          strokeColor: "#059669",
-          strokeOpacity: 0.9,
-          strokeWeight: 6,
-          endIcon: maps.PointingIcon?.OPEN_ARROW,
-        });
-        new maps.Marker({
-          map,
-          position: toLatLng(maps, originPoint),
-          title: "출발지",
-        });
-        new maps.Marker({
-          map,
-          position: toLatLng(maps, destinationPoint),
-          title: "근무지",
-        });
+        maps.Event.once(map, "init", () => {
+          if (cancelled) return;
 
-        map.fitBounds(bounds);
-        setReadyMapKey(mapKey);
+          const width = container.clientWidth;
+          const height = container.clientHeight;
+          if (width > 0 && height > 0) {
+            map.setSize(new maps.Size(width, height));
+          }
 
-        authFailureTimerIds.push(
-          window.setTimeout(() => {
-            if (!cancelled && hasAuthFailureText(container)) setFailedMapKey(mapKey);
-          }, 1200)
-        );
+          new maps.Polyline({
+            map,
+            path: linePath,
+            strokeColor: "#059669",
+            strokeOpacity: 0.9,
+            strokeWeight: 6,
+            endIcon: maps.PointingIcon?.OPEN_ARROW,
+          });
+          new maps.Marker({
+            map,
+            position: toLatLng(maps, originPoint),
+            title: "출발지",
+          });
+          new maps.Marker({
+            map,
+            position: toLatLng(maps, destinationPoint),
+            title: "근무지",
+          });
+
+          map.fitBounds(bounds, { top: 24, right: 24, bottom: 24, left: 24 });
+          setReadyMapKey(mapKey);
+
+          authFailureTimerIds.push(
+            window.setTimeout(() => {
+              if (!cancelled && hasAuthFailureText(container)) setFailedMapKey(mapKey);
+            }, 1200)
+          );
+        });
       } catch {
         if (!cancelled) setFailedMapKey(mapKey);
       }
