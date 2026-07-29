@@ -33,6 +33,8 @@ type NaverMapsNamespace = {
 };
 
 type MapStatus = "loading" | "ready" | "fallback";
+const CANONICAL_SITE_ORIGIN =
+  process.env.NEXT_PUBLIC_SITE_URL ?? "https://hhoing-fit-check.vercel.app";
 
 declare global {
   interface Window {
@@ -106,11 +108,6 @@ function toLatLng(maps: NaverMapsNamespace, point: MapPoint): unknown {
 
 function hasAuthFailureText(element: HTMLElement): boolean {
   return element.innerText.includes("인증") && element.innerText.includes("실패");
-}
-
-function getCurrentOrigin(): string {
-  if (typeof window === "undefined") return "현재 배포 도메인";
-  return window.location.origin;
 }
 
 export default function RouteMap({
@@ -257,7 +254,7 @@ export default function RouteMap({
           <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
           <p>
             네이버 Dynamic Map 인증이 실패해서 미리보기로 표시 중입니다. Naver Cloud
-            Maps 서비스 환경에 {getCurrentOrigin()} 주소를 등록하면 드래그/확대가 가능한
+            Maps 서비스 환경에 {CANONICAL_SITE_ORIGIN} 주소를 등록하면 드래그/확대가 가능한
             네이버 지도로 표시됩니다.
           </p>
         </div>

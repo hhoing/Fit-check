@@ -12,6 +12,9 @@ import JobModal from "@/components/JobModal";
 import DeadlineCalendar from "@/components/DeadlineCalendar";
 
 const INITIAL_JOBS: JobPosting[] = [];
+const CANONICAL_SITE_ORIGIN =
+  process.env.NEXT_PUBLIC_SITE_URL ?? "https://hhoing-fit-check.vercel.app";
+const CANONICAL_SITE_HOST = new URL(CANONICAL_SITE_ORIGIN).host;
 
 type FilterTab = "전체" | JobStatus;
 const FILTER_TABS: FilterTab[] = ["전체", ...STATUS_LIST];
@@ -75,6 +78,16 @@ export default function DashboardPage() {
     running: boolean;
   } | null>(null);
   const upgradingIdsRef = useRef<Set<string>>(new Set());
+
+  useEffect(() => {
+    if (window.location.hostname.endsWith(".vercel.app")) {
+      if (window.location.host !== CANONICAL_SITE_HOST) {
+        window.location.replace(
+          `${CANONICAL_SITE_ORIGIN}${window.location.pathname}${window.location.search}${window.location.hash}`
+        );
+      }
+    }
+  }, []);
 
   const handleParsed = useCallback(
     (data: ParseJobResponse, rawText: string) => {
