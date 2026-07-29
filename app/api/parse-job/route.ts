@@ -299,7 +299,7 @@ function normalizeSaraminApiDeadline(job: Record<string, unknown>): string | nul
 
   if (!Number.isFinite(timestamp) || timestamp <= 0) return undefined;
   const date = new Date(timestamp * 1000);
-  return toDateString(date.getFullYear(), date.getMonth() + 1, date.getDate());
+  return toKoreaDateString(date) ?? undefined;
 }
 
 function parseSaraminApiJob(job: Record<string, unknown>): ParsedJobFields {
@@ -1724,6 +1724,19 @@ function normalizeIsoDate(value: unknown): string | null | undefined {
   return toDateString(Number(match[1]), Number(match[2]), Number(match[3]));
 }
 
+function normalizeDeadlineDateValue(value: unknown): string | null | undefined {
+  if (typeof value !== "string") return undefined;
+
+  const iso = normalizeIsoDate(value);
+  if (iso !== undefined) return iso;
+
+  const fullDate = extractLastFullDate(value);
+  if (fullDate) return fullDate;
+
+  if (value.length <= 80) return extractLastShortDate(value);
+  return undefined;
+}
+
 function extractJobPostingFromLd(html: string): ParsedJobFields {
   const records = parseLdJsonBlocks(html).flatMap(flattenLd);
   const job = records.find((record) => ldTypeIncludes(record, "JobPosting"));
@@ -1766,8 +1779,7 @@ function extractMetadataFromHtml(html: string): ParsedJobFields {
   const visibleDeadline = extractDeadline([title, description].filter(Boolean).join("\n"));
   const base = {
     ...ld,
-    deadline:
-      visibleDeadline === ONGOING_DEADLINE_LABEL ? visibleDeadline : ld.deadline ?? visibleDeadline,
+    deadline: visibleDeadline ?? ld.deadline,
     title,
     description,
   };
@@ -2013,26 +2025,131 @@ function getUsefulLines(text: string): string[] {
     });
 }
 
-function extractDeadline(text: string): string | null {
-  const lines = text.split(/\r?\n/);
-  const deadlineLines = lines.filter((line) => /(마감|접수|기간|지원\s*기간|validThrough)/i.test(line));
-  const searchText = deadlineLines.length > 0 ? deadlineLines.join("\n") : text;
-  const hasOngoingDeadlineLine = deadlineLines.some((line) =>
-    /(?:마감일|마감|접수기간|접수\s*기간|지원\s*기간)\s*[:：]?\s*.{0,80}?(상시\s*채용|상시|채용\s*시|수시\s*채용|수시)/i.test(line)
+function extractLastFullDate(text: string): string | null {
+  const fullDates = [
+    ...text.matchAll(/(20\d{2})\s*[.\-/년]\s*(\d{1,2})\s*[.\-/월]\s*(\d{1,2})/g),
+  ];
+  if (fullDates.length === 0) return null;
+
+  const last = fullDates[fullDates.length - 1];
+  return toDateString(Number(last[1]), Number(last[2]), Number(last[3]));
+}
+
+function getKoreaYear(): number {
+  const year = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Seoul",
+    year: "numeric",
+  }).format(new Date());
+
+  return Number(year);
+}
+
+function extractLastShortDate(text: string): string | null {
+  const shortDates = [
+    ...text.matchAll(/(?:^|[^\d])(\d{1,2})\s*[./월]\s*(\d{1,2})(?!\d)/g),
+  ];
+  if (shortDates.length === 0) return null;
+
+  const last = shortDates[shortDates.length - 1];
+  return toDateString(getKoreaYear(), Number(last[1]), Number(last[2]));
+}
+
+function addDays(date: Date, days: number): Date {
+  const next = new Date(date);
+  next.setDate(next.getDate() + days);
+  return next;
+}
+
+function toKoreaDateString(date: Date): string | null {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Seoul",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(date);
+  const valueByType = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+
+  return toDateString(
+    Number(valueByType.year),
+    Number(valueByType.month),
+    Number(valueByType.day)
   );
+}
 
-  if (hasOngoingDeadlineLine) return ONGOING_DEADLINE_LABEL;
+function extractRelativeDeadline(text: string): string | null {
+  const compact = text.replace(/\s+/g, "");
 
-  const fullDates = [...searchText.matchAll(/(20\d{2})\s*[.\-/년]\s*(\d{1,2})\s*[.\-/월]\s*(\d{1,2})/g)];
-  if (fullDates.length > 0) {
-    const last = fullDates[fullDates.length - 1];
-    return toDateString(Number(last[1]), Number(last[2]), Number(last[3]));
+  if (/오늘마감|D-?Day/i.test(compact)) return toKoreaDateString(new Date());
+  if (/내일마감/.test(compact)) return toKoreaDateString(addDays(new Date(), 1));
+
+  const dDay = compact.match(/D-?(\d{1,3})/i);
+  if (dDay) return toKoreaDateString(addDays(new Date(), Number(dDay[1])));
+
+  const remaining =
+    text.match(/남은\s*기간\s*(\d{1,3})\s*일/) ??
+    text.match(/(\d{1,3})\s*일\s*(?:남음|남았습니다)/);
+  if (remaining?.[1]) return toKoreaDateString(addDays(new Date(), Number(remaining[1])));
+
+  return null;
+}
+
+function getSegmentsAfterLabel(line: string, pattern: RegExp): string[] {
+  const matches = [...line.matchAll(pattern)];
+
+  return matches.map((match, index) => {
+    const start = (match.index ?? 0) + match[0].length;
+    const end = matches[index + 1]?.index ?? line.length;
+    return line.slice(start, end).trim();
+  });
+}
+
+function extractDeadlineFromSegment(segment: string): string | null {
+  const candidate = segment.slice(0, 160);
+  const date =
+    extractLastFullDate(candidate) ??
+    extractLastShortDate(candidate) ??
+    extractRelativeDeadline(candidate);
+
+  if (date) return date;
+  if (isOngoingDeadline(candidate)) return ONGOING_DEADLINE_LABEL;
+  return null;
+}
+
+function extractDeadline(text: string): string | null {
+  const lines = text
+    .split(/\r?\n/)
+    .map(cleanLine)
+    .filter(Boolean);
+
+  for (const line of lines) {
+    const deadlineSegments = getSegmentsAfterLabel(
+      line,
+      /(?:마감일(?!\s*은)|접수\s*마감(?:일)?|지원\s*마감(?:일)?|지원마감(?:일)?)\s*[:：]?/gi
+    ).reverse();
+    for (const segment of deadlineSegments) {
+      const deadline = extractDeadlineFromSegment(segment);
+      if (deadline) return deadline;
+    }
   }
 
-  const shortDate = searchText.match(/(?:마감|접수기간|~)\D{0,12}(\d{1,2})\s*[./월]\s*(\d{1,2})/);
-  if (shortDate) {
-    const now = new Date();
-    return toDateString(now.getFullYear(), Number(shortDate[1]), Number(shortDate[2]));
+  for (const line of lines) {
+    const validThroughSegments = getSegmentsAfterLabel(line, /validThrough\s*[:：]?/gi);
+    for (const segment of validThroughSegments) {
+      const deadline = normalizeDeadlineDateValue(segment);
+      if (deadline) return deadline;
+    }
+  }
+
+  for (const line of lines) {
+    const rangeSegments = getSegmentsAfterLabel(
+      line,
+      /(?:접수\s*기간|접수기간|지원\s*기간|지원기간)\s*[:：]?/gi
+    );
+    for (const segment of rangeSegments) {
+      if (!/[~～]|부터|까지/.test(segment)) continue;
+      const deadline = extractDeadlineFromSegment(segment);
+      if (deadline) return deadline;
+    }
   }
 
   return null;
@@ -2290,7 +2407,7 @@ function chooseDeadline(value: unknown, fallback: string | null): string | null 
   if (isOngoingDeadline(fallback)) return ONGOING_DEADLINE_LABEL;
   if (typeof value !== "string") return fallback;
   const normalized =
-    normalizeIsoDate(value) ??
+    normalizeDeadlineDateValue(value) ??
     extractDeadline(value) ??
     (isOngoingDeadline(value) && !fallback ? ONGOING_DEADLINE_LABEL : null);
   return normalized ?? fallback;

@@ -10,8 +10,18 @@ export function isOngoingDeadline(value: string | null | undefined): boolean {
 export function parseDeadlineDate(value: string | null | undefined): Date | null {
   if (!value || !ISO_DATE_PATTERN.test(value)) return null;
 
-  const date = new Date(`${value}T00:00:00`);
-  return Number.isNaN(date.getTime()) ? null : date;
+  const [year, month, day] = value.split("-").map(Number);
+  const date = new Date(year, month - 1, day);
+
+  if (
+    date.getFullYear() !== year ||
+    date.getMonth() !== month - 1 ||
+    date.getDate() !== day
+  ) {
+    return null;
+  }
+
+  return date;
 }
 
 export function getDeadlineSortTime(value: string | null | undefined): number {
@@ -63,7 +73,8 @@ export function getDeadlineBadge(value: string | null | undefined): {
   label: string;
   urgent: boolean;
 } {
-  if (!value || isOngoingDeadline(value)) {
+  if (!value) return { label: "미정", urgent: false };
+  if (isOngoingDeadline(value)) {
     return { label: ONGOING_DEADLINE_LABEL, urgent: false };
   }
 
