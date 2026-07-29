@@ -119,6 +119,7 @@ function normalizeJobPosting(jobPosting: JobPosting): JobPosting {
     preferredQualifications: jobPosting.preferredQualifications ?? [],
     hiringProcess: jobPosting.hiringProcess ?? [],
     rawText: jobPosting.rawText ?? "",
+    isFavorite: jobPosting.isFavorite ?? false,
     createdAt: jobPosting.createdAt ?? new Date().toISOString(),
     status: jobPosting.status ?? "관심",
   };

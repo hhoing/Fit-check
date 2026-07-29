@@ -29,6 +29,7 @@ export interface JobPosting {
   employmentType?: string;
   experienceLevel?: "신입" | "경력" | "신입/경력" | "경력무관" | "미확인";
   memo?: string;
+  isFavorite: boolean;
   createdAt: string;
   status: JobStatus;
   fitScore?: number;

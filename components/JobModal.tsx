@@ -15,6 +15,7 @@ import {
   Briefcase,
   UserRound,
   NotebookPen,
+  Star,
 } from "lucide-react";
 import {
   JobPosting,
@@ -181,6 +182,13 @@ export default function JobModal({ job, onClose, onUpdate }: JobModalProps) {
     [localJob, onUpdate]
   );
 
+  const handleFavoriteToggle = useCallback(() => {
+    const updated = { ...localJob, isFavorite: !localJob.isFavorite };
+    setLocalJob(updated);
+    onUpdate(updated);
+    toast(updated.isFavorite ? "즐겨찾기에 추가했습니다." : "즐겨찾기에서 해제했습니다.", "success");
+  }, [localJob, onUpdate, toast]);
+
   const jobplanetUrl = `https://www.jobplanet.co.kr/search?query=${encodeURIComponent(localJob.companyName)}`;
   const jotsoUrl = `https://jotso.net/search?q=${encodeURIComponent(localJob.companyName)}`;
   const hasPositionDetails = (localJob.positionDetails ?? []).some(
@@ -223,12 +231,26 @@ export default function JobModal({ job, onClose, onUpdate }: JobModalProps) {
               </h2>
             </div>
           </div>
-          <button
-            onClick={onClose}
-            className="p-2 rounded-xl hover:bg-gray-100 transition-colors text-gray-400 shrink-0"
-          >
-            <X className="w-5 h-5" />
-          </button>
+          <div className="flex shrink-0 items-center gap-1">
+            <button
+              onClick={handleFavoriteToggle}
+              className={`p-2 rounded-xl border transition-colors ${
+                localJob.isFavorite
+                  ? "border-amber-200 bg-amber-50 text-amber-400"
+                  : "border-gray-100 text-gray-300 hover:border-amber-200 hover:text-amber-400"
+              }`}
+              title={localJob.isFavorite ? "즐겨찾기 해제" : "즐겨찾기"}
+              aria-label={localJob.isFavorite ? "즐겨찾기 해제" : "즐겨찾기"}
+            >
+              <Star className="w-5 h-5" fill={localJob.isFavorite ? "currentColor" : "none"} />
+            </button>
+            <button
+              onClick={onClose}
+              className="p-2 rounded-xl hover:bg-gray-100 transition-colors text-gray-400"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
         </div>
 
         {/* 지원 상태 선택 */}

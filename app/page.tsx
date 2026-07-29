@@ -115,6 +115,7 @@ export default function DashboardPage() {
         employmentType: data.employmentType ?? "미확인",
         experienceLevel: data.experienceLevel ?? "미확인",
         memo: "",
+        isFavorite: false,
         createdAt: new Date().toISOString(),
         status: "관심",
       };
@@ -213,6 +214,15 @@ export default function DashboardPage() {
       setSelectedJob(latest);
     },
     [jobs]
+  );
+
+  const toggleFavorite = useCallback(
+    (job: JobPosting) => {
+      const updated = { ...job, isFavorite: !job.isFavorite };
+      updateJob(updated);
+      setSelectedJob((prev) => (prev?.id === job.id ? updated : prev));
+    },
+    [updateJob]
   );
 
   // 상태 필터 + D-Day 기반 분리
@@ -417,10 +427,14 @@ export default function DashboardPage() {
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               {activeJobs.map((job) => (
                 <div key={job.id} className="relative group">
-                  <JobCard job={job} onClick={() => selectJob(job)} />
+                  <JobCard
+                    job={job}
+                    onClick={() => selectJob(job)}
+                    onToggleFavorite={() => toggleFavorite(job)}
+                  />
                   <button
                     onClick={(e) => requestDeleteJob(job, e)}
-                    className="absolute top-3 right-[52px] opacity-0 group-hover:opacity-100
+                    className="absolute top-3 right-[92px] opacity-0 group-hover:opacity-100
                                transition-opacity p-1 rounded-lg hover:bg-red-50
                                text-gray-300 hover:text-red-400"
                     title="공고 삭제"
@@ -440,10 +454,14 @@ export default function DashboardPage() {
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 opacity-60">
               {expiredJobs.map((job) => (
                 <div key={job.id} className="relative group">
-                  <JobCard job={job} onClick={() => selectJob(job)} />
+                  <JobCard
+                    job={job}
+                    onClick={() => selectJob(job)}
+                    onToggleFavorite={() => toggleFavorite(job)}
+                  />
                   <button
                     onClick={(e) => requestDeleteJob(job, e)}
-                    className="absolute top-3 right-[52px] opacity-0 group-hover:opacity-100
+                    className="absolute top-3 right-[92px] opacity-0 group-hover:opacity-100
                                transition-opacity p-1 rounded-lg hover:bg-red-50
                                text-gray-300 hover:text-red-400"
                   >

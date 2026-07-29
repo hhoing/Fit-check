@@ -16,6 +16,7 @@
 - `rawText`: 원본 공고 텍스트
 - `createdAt`: 등록일
 - `status`: 지원 상태
+- `isFavorite`: 즐겨찾기 여부
 - `fitScore`: 적합도 점수
 - `fitAnalysis`: 적합도 분석 결과
 - `commuteTime`: 통근 시간 정보

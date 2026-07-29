@@ -1,6 +1,6 @@
 "use client";
 
-import { Building2, Calendar, MapPin, NotebookPen } from "lucide-react";
+import { Building2, Calendar, MapPin, NotebookPen, Star } from "lucide-react";
 import { JobPosting } from "@/types";
 import { STATUS_CONFIG } from "@/lib/constants";
 import { formatDeadlineShort, getDeadlineBadge } from "@/lib/deadline";
@@ -8,9 +8,10 @@ import { formatDeadlineShort, getDeadlineBadge } from "@/lib/deadline";
 interface JobCardProps {
   job: JobPosting;
   onClick: () => void;
+  onToggleFavorite: () => void;
 }
 
-export default function JobCard({ job, onClick }: JobCardProps) {
+export default function JobCard({ job, onClick, onToggleFavorite }: JobCardProps) {
   const { label: dDay, urgent } = getDeadlineBadge(job.deadline, job.deadlineTime);
   const score = job.fitScore;
   const statusCfg = STATUS_CONFIG[job.status ?? "관심"];
@@ -28,9 +29,18 @@ export default function JobCard({ job, onClick }: JobCardProps) {
       : "text-gray-300";
 
   return (
-    <button
+    <div
+      role="button"
+      tabIndex={0}
       onClick={onClick}
-      className="group w-full text-left bg-white rounded-2xl border border-gray-100 shadow-sm
+      onKeyDown={(e) => {
+        if (e.target !== e.currentTarget) return;
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onClick();
+        }
+      }}
+      className="group w-full cursor-pointer text-left bg-white rounded-2xl border border-gray-100 shadow-sm
                  hover:shadow-md hover:border-blue-200 hover:-translate-y-0.5
                  transition-all duration-200 p-5 flex flex-col gap-3"
     >
@@ -48,11 +58,30 @@ export default function JobCard({ job, onClick }: JobCardProps) {
           </div>
         </div>
         <div className="flex shrink-0 flex-col items-end gap-1">
-          {job.status === "서류 제출" && (
-            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-50 text-blue-600 ring-1 ring-blue-100">
-              ✅ 제출
-            </span>
-          )}
+          <div className="flex items-center gap-1">
+            {job.status === "서류 제출" && (
+              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-50 text-blue-600 ring-1 ring-blue-100">
+                ✅ 제출
+              </span>
+            )}
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onToggleFavorite();
+              }}
+              className={`inline-flex h-7 w-7 items-center justify-center rounded-lg border transition-colors
+                ${
+                  job.isFavorite
+                    ? "border-amber-200 bg-amber-50 text-amber-400"
+                    : "border-gray-100 bg-white text-gray-300 hover:border-amber-200 hover:text-amber-400"
+                }`}
+              title={job.isFavorite ? "즐겨찾기 해제" : "즐겨찾기"}
+              aria-label={job.isFavorite ? "즐겨찾기 해제" : "즐겨찾기"}
+            >
+              <Star className="w-3.5 h-3.5" fill={job.isFavorite ? "currentColor" : "none"} />
+            </button>
+          </div>
           <span
             className={`text-xs font-bold px-2.5 py-1 rounded-full
               ${dDay === "마감"
@@ -126,6 +155,6 @@ export default function JobCard({ job, onClick }: JobCardProps) {
           </span>
         )}
       </div>
-    </button>
+    </div>
   );
 }
