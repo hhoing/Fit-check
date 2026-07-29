@@ -1,7 +1,17 @@
 "use client";
 
 import { useState, useCallback, useEffect, useRef } from "react";
-import { BriefcaseBusiness, CalendarDays, Clock3, Loader2, List, Plus, Target, X } from "lucide-react";
+import {
+  ArrowUp,
+  BriefcaseBusiness,
+  CalendarDays,
+  Clock3,
+  Loader2,
+  List,
+  Plus,
+  Target,
+  X,
+} from "lucide-react";
 import { JobPosting, JobStatus, ParseJobResponse } from "@/types";
 import { STATUS_LIST, STATUS_CONFIG } from "@/lib/constants";
 import { getDeadlineSortTime, isDeadlineExpired } from "@/lib/deadline";
@@ -74,6 +84,7 @@ export default function DashboardPage() {
   const [activeFilter, setActiveFilter] = useState<FilterTab>("전체");
   const [sortMode, setSortMode] = useState<SortMode>("deadline");
   const [viewMode, setViewMode] = useState<ViewMode>("list");
+  const [showScrollTop, setShowScrollTop] = useState(false);
   const [upgradeProgress, setUpgradeProgress] = useState<{
     total: number;
     done: number;
@@ -89,6 +100,16 @@ export default function DashboardPage() {
         );
       }
     }
+  }, []);
+
+  useEffect(() => {
+    const handleScroll = () => {
+      setShowScrollTop(window.scrollY > 420);
+    };
+
+    handleScroll();
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    return () => window.removeEventListener("scroll", handleScroll);
   }, []);
 
   const handleParsed = useCallback(
@@ -196,6 +217,10 @@ export default function DashboardPage() {
     []
   );
 
+  const requestDeleteJobFromModal = useCallback((job: JobPosting) => {
+    setJobToDelete(job);
+  }, []);
+
   const confirmDeleteJob = useCallback(() => {
     if (!jobToDelete) return;
     const id = jobToDelete.id;
@@ -224,6 +249,10 @@ export default function DashboardPage() {
     },
     [updateJob]
   );
+
+  const scrollToTop = useCallback(() => {
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }, []);
 
   // 상태 필터 + D-Day 기반 분리
   const now = new Date();
@@ -509,7 +538,19 @@ export default function DashboardPage() {
           job={selectedJob}
           onClose={() => setSelectedJob(null)}
           onUpdate={handleUpdateJob}
+          onRequestDelete={requestDeleteJobFromModal}
         />
+      )}
+
+      {showScrollTop && (
+        <button
+          onClick={scrollToTop}
+          className="fixed bottom-5 right-5 z-40 inline-flex h-11 w-11 items-center justify-center rounded-full border border-blue-100 bg-white text-blue-500 shadow-lg shadow-blue-100/70 transition-all hover:-translate-y-0.5 hover:border-blue-200 hover:bg-blue-50"
+          title="맨 위로"
+          aria-label="맨 위로"
+        >
+          <ArrowUp className="h-5 w-5" />
+        </button>
       )}
 
       {jobToDelete && (

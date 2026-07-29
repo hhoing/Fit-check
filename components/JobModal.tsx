@@ -16,6 +16,7 @@ import {
   UserRound,
   NotebookPen,
   Star,
+  Trash2,
 } from "lucide-react";
 import {
   JobPosting,
@@ -36,9 +37,10 @@ interface JobModalProps {
   job: JobPosting;
   onClose: () => void;
   onUpdate: (updated: JobPosting) => void;
+  onRequestDelete: (job: JobPosting) => void;
 }
 
-export default function JobModal({ job, onClose, onUpdate }: JobModalProps) {
+export default function JobModal({ job, onClose, onUpdate, onRequestDelete }: JobModalProps) {
   const [analyzing, setAnalyzing] = useState(false);
   const [refreshingInfo, setRefreshingInfo] = useState(false);
   const [localJob, setLocalJob] = useState<JobPosting>(job);
@@ -189,6 +191,10 @@ export default function JobModal({ job, onClose, onUpdate }: JobModalProps) {
     toast(updated.isFavorite ? "즐겨찾기에 추가했습니다." : "즐겨찾기에서 해제했습니다.", "success");
   }, [localJob, onUpdate, toast]);
 
+  const handleDeleteRequest = useCallback(() => {
+    onRequestDelete(localJob);
+  }, [localJob, onRequestDelete]);
+
   const jobplanetUrl = `https://www.jobplanet.co.kr/search?query=${encodeURIComponent(localJob.companyName)}`;
   const jotsoUrl = `https://jotso.net/search?q=${encodeURIComponent(localJob.companyName)}`;
   const hasPositionDetails = (localJob.positionDetails ?? []).some(
@@ -232,6 +238,14 @@ export default function JobModal({ job, onClose, onUpdate }: JobModalProps) {
             </div>
           </div>
           <div className="flex shrink-0 items-center gap-1">
+            <button
+              onClick={handleDeleteRequest}
+              className="p-2 rounded-xl border border-gray-100 text-gray-300 transition-colors hover:border-red-100 hover:bg-red-50 hover:text-red-400"
+              title="공고 삭제"
+              aria-label="공고 삭제"
+            >
+              <Trash2 className="w-5 h-5" />
+            </button>
             <button
               onClick={handleFavoriteToggle}
               className={`p-2 rounded-xl border transition-colors ${
