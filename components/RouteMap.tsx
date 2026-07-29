@@ -13,8 +13,6 @@ interface RouteMapProps {
 
 type NaverMapInstance = {
   fitBounds: (bounds: unknown) => void;
-  setCenter: (point: unknown) => void;
-  setZoom: (zoom: number) => void;
 };
 
 type NaverBounds = {
@@ -38,7 +36,13 @@ declare global {
       maps?: NaverMapsNamespace;
     };
     __fitCheckNaverMapsPromise?: Promise<void>;
+    __fitCheckNaverMapsReady?: () => void;
   }
+}
+
+function getMapSdkHelpMessage(reason: string): string {
+  const origin = typeof window !== "undefined" ? window.location.origin : "현재 사이트 주소";
+  return `${reason} Naver Cloud Maps 서비스 환경에 ${origin} 주소가 등록되어 있는지 확인해 주세요.`;
 }
 
 function loadNaverMaps(clientId: string): Promise<void> {
@@ -46,24 +50,59 @@ function loadNaverMaps(clientId: string): Promise<void> {
   if (window.__fitCheckNaverMapsPromise) return window.__fitCheckNaverMapsPromise;
 
   window.__fitCheckNaverMapsPromise = new Promise((resolve, reject) => {
+    const timeoutIds: number[] = [];
+
+    const cleanup = () => {
+      timeoutIds.forEach((timeoutId) => window.clearTimeout(timeoutId));
+      delete window.__fitCheckNaverMapsReady;
+    };
+    const resolveIfReady = () => {
+      if (window.naver?.maps) {
+        cleanup();
+        resolve();
+        return;
+      }
+
+      cleanup();
+      window.__fitCheckNaverMapsPromise = undefined;
+      reject(new Error(getMapSdkHelpMessage("지도 SDK를 불러왔지만 지도 객체를 찾지 못했습니다.")));
+    };
+    const fail = (message: string) => {
+      cleanup();
+      window.__fitCheckNaverMapsPromise = undefined;
+      reject(new Error(getMapSdkHelpMessage(message)));
+    };
+
     const existingScript = document.querySelector<HTMLScriptElement>(
       'script[data-fit-check-naver-map="true"]'
     );
 
     if (existingScript) {
-      existingScript.addEventListener("load", () => resolve(), { once: true });
-      existingScript.addEventListener("error", () => reject(new Error("지도 SDK 로드 실패")), {
+      if (window.naver?.maps) {
+        resolve();
+        return;
+      }
+
+      existingScript.addEventListener("load", resolveIfReady, { once: true });
+      existingScript.addEventListener("error", () => fail("지도 SDK 로드에 실패했습니다."), {
         once: true,
       });
       return;
     }
 
+    window.__fitCheckNaverMapsReady = resolveIfReady;
+    timeoutIds.push(
+      window.setTimeout(() => fail("지도 SDK 초기화 시간이 초과되었습니다."), 10000)
+    );
+
     const script = document.createElement("script");
     script.dataset.fitCheckNaverMap = "true";
     script.async = true;
-    script.src = `https://oapi.map.naver.com/openapi/v3/maps.js?ncpKeyId=${encodeURIComponent(clientId)}`;
-    script.onload = () => resolve();
-    script.onerror = () => reject(new Error("지도 SDK 로드 실패"));
+    script.src = `https://oapi.map.naver.com/openapi/v3/maps.js?ncpKeyId=${encodeURIComponent(
+      clientId
+    )}&callback=__fitCheckNaverMapsReady`;
+    script.onload = () => window.setTimeout(resolveIfReady, 0);
+    script.onerror = () => fail("지도 SDK 로드에 실패했습니다.");
     document.head.appendChild(script);
   });
 
@@ -102,7 +141,7 @@ export default function RouteMap({
         const container = containerRef.current;
 
         if (!maps || !container) {
-          throw new Error("지도 SDK를 초기화하지 못했습니다.");
+          throw new Error(getMapSdkHelpMessage("지도 SDK를 초기화하지 못했습니다."));
         }
 
         container.innerHTML = "";
