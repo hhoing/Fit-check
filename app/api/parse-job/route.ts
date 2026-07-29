@@ -2421,27 +2421,37 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(fallback);
     }
 
-    const message = await client.messages.create({
-      model: "claude-haiku-4-5-20251001",
-      max_tokens: 1024,
-      messages: [
-        {
-          role: "user",
-          content: `${PARSE_PROMPT}\n\n구조화 힌트:\n${JSON.stringify(metadata, null, 2)}\n\n채용 공고 내용:\n${inputText.slice(0, 12000)}`,
-        },
-      ],
-    });
+    let parsed: ParseJobResponse;
+    try {
+      const message = await client.messages.create({
+        model: "claude-haiku-4-5-20251001",
+        max_tokens: 1024,
+        messages: [
+          {
+            role: "user",
+            content: `${PARSE_PROMPT}\n\n구조화 힌트:\n${JSON.stringify(metadata, null, 2)}\n\n채용 공고 내용:\n${inputText.slice(0, 12000)}`,
+          },
+        ],
+      });
 
-    const content = message.content[0];
-    if (content.type !== "text") {
-      throw new Error("Unexpected response type");
+      const content = message.content[0];
+      if (content.type !== "text") {
+        throw new Error("Unexpected response type");
+      }
+
+      const jsonMatch =
+        content.text.match(/```json\s*([\s\S]*?)```/) ||
+        content.text.match(/\{[\s\S]*\}/);
+      const jsonStr = jsonMatch ? (jsonMatch[1] || jsonMatch[0]) : content.text;
+      parsed = JSON.parse(jsonStr.trim()) as ParseJobResponse;
+    } catch (error) {
+      console.warn(
+        "AI parse fallback:",
+        error instanceof Error ? error.message : "unknown error"
+      );
+      return NextResponse.json(fallback);
     }
 
-    const jsonMatch =
-      content.text.match(/```json\s*([\s\S]*?)```/) ||
-      content.text.match(/\{[\s\S]*\}/);
-    const jsonStr = jsonMatch ? (jsonMatch[1] || jsonMatch[0]) : content.text;
-    const parsed: ParseJobResponse = JSON.parse(jsonStr.trim());
     const mainTasks = chooseStringList(fallback.mainTasks, parsed.mainTasks, 20);
     const qualifications = chooseStringList(fallback.qualifications, parsed.qualifications, 20);
     const preferredQualifications = chooseStringList(
