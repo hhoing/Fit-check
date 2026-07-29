@@ -2421,7 +2421,6 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(fallback);
     }
 
-    let parsed: ParseJobResponse;
     try {
       const message = await client.messages.create({
         model: "claude-haiku-4-5-20251001",
@@ -2443,7 +2442,61 @@ export async function POST(req: NextRequest) {
         content.text.match(/```json\s*([\s\S]*?)```/) ||
         content.text.match(/\{[\s\S]*\}/);
       const jsonStr = jsonMatch ? (jsonMatch[1] || jsonMatch[0]) : content.text;
-      parsed = JSON.parse(jsonStr.trim()) as ParseJobResponse;
+      const parsed = JSON.parse(jsonStr.trim()) as ParseJobResponse;
+      const mainTasks = chooseStringList(fallback.mainTasks, parsed.mainTasks, 20);
+      const qualifications = chooseStringList(fallback.qualifications, parsed.qualifications, 20);
+      const preferredQualifications = chooseStringList(
+        fallback.preferredQualifications,
+        parsed.preferredQualifications,
+        16
+      );
+      const hiringProcess = chooseStringList(fallback.hiringProcess, parsed.hiringProcess, 12);
+      const positionDetails = choosePositionDetails(fallback.positionDetails, parsed.positionDetails);
+      const requiredSpecs = deriveRequiredSpecsFromSections(
+        { qualifications, preferredQualifications },
+        chooseSpecs(parsed.requiredSpecs, fallback.requiredSpecs)
+      );
+      const hasTrustedSaraminApi = Boolean(metadata.saraminApiUsed);
+
+      const result = await refineParseResultWorkplace({
+        companyName: chooseTrustedField(hasTrustedSaraminApi, parsed.companyName, fallback.companyName),
+        jobTitle: chooseTrustedField(hasTrustedSaraminApi, parsed.jobTitle, fallback.jobTitle),
+        deadline: chooseTrustedDeadline(hasTrustedSaraminApi, parsed.deadline, fallback.deadline),
+        workplaceAddress: chooseTrustedField(
+          hasTrustedSaraminApi,
+          parsed.workplaceAddress,
+          fallback.workplaceAddress
+        ),
+        requiredSpecs,
+        positionDetails,
+        mainTasks,
+        qualifications,
+        preferredQualifications,
+        hiringProcess,
+        salary: cleanSalaryValue(
+          chooseTrustedField(hasTrustedSaraminApi, parsed.salary, fallback.salary ?? "미확인")
+        ),
+        employmentType:
+          normalizeEmploymentTypeValue(
+            chooseTrustedField(
+              hasTrustedSaraminApi,
+              parsed.employmentType,
+              fallback.employmentType ?? "미확인"
+            )
+          ) ?? "미확인",
+        experienceLevel: chooseTrustedExperienceLevel(
+          hasTrustedSaraminApi,
+          parsed.experienceLevel,
+          fallback.experienceLevel
+        ),
+        rawText: inputText,
+        sourceUrl: normalizedUrl,
+        sourceType: normalizedUrl ? "url" : "text",
+        parserMode: "ai",
+        parserVersion: CURRENT_JOB_PARSER_VERSION,
+      });
+
+      return NextResponse.json(result);
     } catch (error) {
       console.warn(
         "AI parse fallback:",
@@ -2451,61 +2504,6 @@ export async function POST(req: NextRequest) {
       );
       return NextResponse.json(fallback);
     }
-
-    const mainTasks = chooseStringList(fallback.mainTasks, parsed.mainTasks, 20);
-    const qualifications = chooseStringList(fallback.qualifications, parsed.qualifications, 20);
-    const preferredQualifications = chooseStringList(
-      fallback.preferredQualifications,
-      parsed.preferredQualifications,
-      16
-    );
-    const hiringProcess = chooseStringList(fallback.hiringProcess, parsed.hiringProcess, 12);
-    const positionDetails = choosePositionDetails(fallback.positionDetails, parsed.positionDetails);
-    const requiredSpecs = deriveRequiredSpecsFromSections(
-      { qualifications, preferredQualifications },
-      chooseSpecs(parsed.requiredSpecs, fallback.requiredSpecs)
-    );
-    const hasTrustedSaraminApi = Boolean(metadata.saraminApiUsed);
-
-    const result = await refineParseResultWorkplace({
-      companyName: chooseTrustedField(hasTrustedSaraminApi, parsed.companyName, fallback.companyName),
-      jobTitle: chooseTrustedField(hasTrustedSaraminApi, parsed.jobTitle, fallback.jobTitle),
-      deadline: chooseTrustedDeadline(hasTrustedSaraminApi, parsed.deadline, fallback.deadline),
-      workplaceAddress: chooseTrustedField(
-        hasTrustedSaraminApi,
-        parsed.workplaceAddress,
-        fallback.workplaceAddress
-      ),
-      requiredSpecs,
-      positionDetails,
-      mainTasks,
-      qualifications,
-      preferredQualifications,
-      hiringProcess,
-      salary: cleanSalaryValue(
-        chooseTrustedField(hasTrustedSaraminApi, parsed.salary, fallback.salary ?? "미확인")
-      ),
-      employmentType:
-        normalizeEmploymentTypeValue(
-          chooseTrustedField(
-            hasTrustedSaraminApi,
-            parsed.employmentType,
-            fallback.employmentType ?? "미확인"
-          )
-        ) ?? "미확인",
-      experienceLevel: chooseTrustedExperienceLevel(
-        hasTrustedSaraminApi,
-        parsed.experienceLevel,
-        fallback.experienceLevel
-      ),
-      rawText: inputText,
-      sourceUrl: normalizedUrl,
-      sourceType: normalizedUrl ? "url" : "text",
-      parserMode: "ai",
-      parserVersion: CURRENT_JOB_PARSER_VERSION,
-    });
-
-    return NextResponse.json(result);
   } catch (error) {
     console.error("parse-job error:", error);
     return NextResponse.json(
