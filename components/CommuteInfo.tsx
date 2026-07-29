@@ -197,12 +197,20 @@ export default function CommuteInfo({ destination, commuteInfo }: CommuteInfoPro
           </div>
           <RouteMap
             staticMapUrl={info.staticMapUrl}
+            clientId={info.mapClientId}
+            originPoint={info.originPoint}
+            destinationPoint={info.destinationPoint}
+            routePath={info.routePath}
           />
         </div>
       ) : canShowMap && info ? (
         <div className="space-y-3">
           <RouteMap
             staticMapUrl={info.staticMapUrl}
+            clientId={info.mapClientId}
+            originPoint={info.originPoint}
+            destinationPoint={info.destinationPoint}
+            routePath={info.routePath}
           />
         </div>
       ) : (
