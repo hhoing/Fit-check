@@ -13,12 +13,34 @@ export interface JobPosting {
   deadline: string | null; // ISO date string or null
   workplaceAddress: string;
   requiredSpecs: string[];
+  positionDetails?: JobPositionDetail[];
+  mainTasks?: string[];
+  qualifications?: string[];
+  preferredQualifications?: string[];
+  hiringProcess?: string[];
   rawText: string;
+  sourceUrl?: string;
+  sourceType?: "text" | "url" | "image";
+  parserVersion?: number;
+  parsedAt?: string;
+  lastParseError?: string;
+  salary?: string;
+  employmentType?: string;
+  experienceLevel?: "신입" | "경력" | "신입/경력" | "경력무관" | "미확인";
+  memo?: string;
   createdAt: string;
   status: JobStatus;
   fitScore?: number;
   fitAnalysis?: FitAnalysis;
   commuteTime?: CommuteInfo;
+}
+
+export interface JobPositionDetail {
+  title: string;
+  headcount?: string;
+  mainTasks: string[];
+  qualifications: string[];
+  preferredQualifications?: string[];
 }
 
 export interface FitAnalysis {
@@ -29,9 +51,22 @@ export interface FitAnalysis {
 
 export interface CommuteInfo {
   duration: number; // minutes
-  method: string;   // e.g. "지하철 + 도보"
-  route: string;    // e.g. "7호선 → 2호선"
+  method: string;   // e.g. "자동차", "지하철 + 도보"
+  route: string;    // e.g. "웹 지도 경로 확인"
   isDummy: boolean;
+  distance?: number; // meters
+  provider?: "naver" | "fallback";
+  error?: string;
+  mapUrl?: string;
+  mapClientId?: string;
+  originPoint?: MapPoint;
+  destinationPoint?: MapPoint;
+  routePath?: MapPoint[];
+}
+
+export interface MapPoint {
+  lat: number;
+  lng: number;
 }
 
 export interface ParseJobRequest {
@@ -45,6 +80,19 @@ export interface ParseJobResponse {
   deadline: string | null;
   workplaceAddress: string;
   requiredSpecs: string[];
+  positionDetails?: JobPositionDetail[];
+  mainTasks?: string[];
+  qualifications?: string[];
+  preferredQualifications?: string[];
+  hiringProcess?: string[];
+  salary?: string;
+  employmentType?: string;
+  experienceLevel?: "신입" | "경력" | "신입/경력" | "경력무관" | "미확인";
+  rawText?: string;
+  sourceUrl?: string;
+  sourceType?: "text" | "url" | "image";
+  parserMode?: "ai" | "fallback";
+  parserVersion?: number;
 }
 
 export interface AnalyzeFitRequest {
@@ -54,4 +102,5 @@ export interface AnalyzeFitRequest {
 export interface AnalyzeFitResponse {
   fitScore: number;
   fitAnalysis: FitAnalysis;
+  analysisMode?: "ai" | "fallback";
 }

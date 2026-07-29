@@ -1,111 +1,80 @@
 "use client";
 
-import { useState, useCallback } from "react";
-import { BriefcaseBusiness, Plus, X } from "lucide-react";
+import { useState, useCallback, useEffect, useRef } from "react";
+import { BriefcaseBusiness, CalendarDays, Clock3, Loader2, List, Plus, Target, X } from "lucide-react";
 import { JobPosting, JobStatus, ParseJobResponse } from "@/types";
 import { STATUS_LIST, STATUS_CONFIG } from "@/lib/constants";
+import { CURRENT_JOB_PARSER_VERSION } from "@/lib/jobParserVersion";
 import { useJobs } from "@/hooks/useJobs";
 import JobCard from "@/components/JobCard";
 import JobInput from "@/components/JobInput";
 import JobModal from "@/components/JobModal";
+import DeadlineCalendar from "@/components/DeadlineCalendar";
 
-// 초기 더미 공고 (localStorage가 비어 있을 때만 사용)
-const INITIAL_JOBS: JobPosting[] = [
-  {
-    id: "demo-1",
-    companyName: "카카오",
-    jobTitle: "프론트엔드 개발자 (React)",
-    deadline: (() => {
-      const d = new Date();
-      d.setDate(d.getDate() + 5);
-      return d.toISOString().split("T")[0];
-    })(),
-    workplaceAddress: "경기도 성남시 분당구 판교역로 166",
-    requiredSpecs: ["React 3년 이상", "TypeScript 필수", "웹 성능 최적화 경험", "GraphQL 우대"],
-    rawText: "카카오 프론트엔드 개발자 채용 공고입니다.",
-    createdAt: new Date().toISOString(),
-    status: "서류 제출",
-    fitScore: 78,
-    fitAnalysis: {
-      advantages: [
-        "React 실무 경험 보유",
-        "TypeScript 프로젝트 진행 경험",
-        "REST API 연동 및 상태 관리 역량",
-        "팀 협업(Git/Jira) 경험",
-      ],
-      disadvantages: [
-        "실무 경력 6개월 (3년 요구 미달)",
-        "GraphQL 경험 없음",
-        "대규모 트래픽 서비스 경험 없음",
-      ],
-      summary: "핵심 기술 스택 일치하나 경력 연차 보완이 관건",
-    },
-  },
-  {
-    id: "demo-2",
-    companyName: "토스",
-    jobTitle: "웹 프론트엔드 엔지니어",
-    deadline: (() => {
-      const d = new Date();
-      d.setDate(d.getDate() + 12);
-      return d.toISOString().split("T")[0];
-    })(),
-    workplaceAddress: "서울시 강남구 테헤란로 311",
-    requiredSpecs: ["Next.js 경험", "TypeScript", "성능 최적화", "자기주도적 업무"],
-    rawText: "토스 웹 프론트엔드 엔지니어 채용 공고입니다.",
-    createdAt: new Date().toISOString(),
-    status: "관심",
-    fitScore: 82,
-    fitAnalysis: {
-      advantages: [
-        "Next.js 개인 프로젝트 경험",
-        "TypeScript 능숙",
-        "정보처리기사 자격증 보유",
-        "자기주도적 학습 능력 입증",
-      ],
-      disadvantages: [
-        "금융 도메인 이해도 부족",
-        "실무 경력 상대적으로 짧음",
-      ],
-      summary: "기술 적합도는 높으나 핀테크 도메인 경험 추가 어필 필요",
-    },
-  },
-  {
-    id: "demo-3",
-    companyName: "라인플러스",
-    jobTitle: "iOS 앱 개발자",
-    deadline: (() => {
-      const d = new Date();
-      d.setDate(d.getDate() + 2);
-      return d.toISOString().split("T")[0];
-    })(),
-    workplaceAddress: "경기도 성남시 분당구 불정로 6",
-    requiredSpecs: ["Swift 3년 이상", "UIKit", "SwiftUI", "앱스토어 배포 경험"],
-    rawText: "라인플러스 iOS 개발자 채용 공고입니다.",
-    createdAt: new Date().toISOString(),
-    status: "관심",
-    fitScore: 22,
-    fitAnalysis: {
-      advantages: ["일본어 관심 (우대사항 해당 가능성)"],
-      disadvantages: [
-        "Swift / iOS 개발 경험 전무",
-        "UIKit / SwiftUI 경험 없음",
-        "모바일 앱스토어 배포 경험 없음",
-        "요구 직무와 보유 기술 스택 불일치",
-      ],
-      summary: "보유 역량과 요구 직무 간 불일치로 지원 재검토 권장",
-    },
-  },
-];
+const INITIAL_JOBS: JobPosting[] = [];
 
 type FilterTab = "전체" | JobStatus;
 const FILTER_TABS: FilterTab[] = ["전체", ...STATUS_LIST];
+type SortMode = "deadline" | "fitScore";
+type ViewMode = "list" | "calendar";
+
+type RefreshPayload = { url: string } | { text: string };
+
+function getJobRefreshPayload(job: JobPosting): RefreshPayload | null {
+  const urlFromRawText = job.rawText.match(/^URL:\s*(https?:\/\/\S+)/)?.[1];
+  const sourceUrl = job.sourceUrl ?? urlFromRawText;
+
+  if (sourceUrl) return { url: sourceUrl };
+  if (job.rawText.trim()) return { text: job.rawText };
+  return null;
+}
+
+function mergeParsedJob(
+  job: JobPosting,
+  data: ParseJobResponse,
+  payload: RefreshPayload
+): JobPosting {
+  return {
+    ...job,
+    companyName: data.companyName,
+    jobTitle: data.jobTitle,
+    deadline: data.deadline,
+    workplaceAddress: data.workplaceAddress,
+    requiredSpecs: data.requiredSpecs,
+    positionDetails: data.positionDetails ?? [],
+    mainTasks: data.mainTasks ?? [],
+    qualifications: data.qualifications ?? [],
+    preferredQualifications: data.preferredQualifications ?? [],
+    hiringProcess: data.hiringProcess ?? [],
+    rawText: data.rawText ?? job.rawText,
+    sourceUrl: data.sourceUrl ?? ("url" in payload ? payload.url : job.sourceUrl),
+    sourceType: data.sourceType ?? ("url" in payload ? "url" : job.sourceType),
+    salary: data.salary ?? "미확인",
+    employmentType: data.employmentType ?? "미확인",
+    experienceLevel: data.experienceLevel ?? "미확인",
+    parserVersion: CURRENT_JOB_PARSER_VERSION,
+    parsedAt: new Date().toISOString(),
+    lastParseError: undefined,
+    commuteTime: undefined,
+    fitScore: undefined,
+    fitAnalysis: undefined,
+  };
+}
 
 export default function DashboardPage() {
-  const { jobs, addJob, updateJob, deleteJob } = useJobs(INITIAL_JOBS);
+  const { jobs, addJob, updateJob, deleteJob, isLoaded } = useJobs(INITIAL_JOBS);
   const [selectedJob, setSelectedJob] = useState<JobPosting | null>(null);
+  const [jobToDelete, setJobToDelete] = useState<JobPosting | null>(null);
   const [showInput, setShowInput] = useState(false);
   const [activeFilter, setActiveFilter] = useState<FilterTab>("전체");
+  const [sortMode, setSortMode] = useState<SortMode>("deadline");
+  const [viewMode, setViewMode] = useState<ViewMode>("list");
+  const [upgradeProgress, setUpgradeProgress] = useState<{
+    total: number;
+    done: number;
+    running: boolean;
+  } | null>(null);
+  const upgradingIdsRef = useRef<Set<string>>(new Set());
 
   const handleParsed = useCallback(
     (data: ParseJobResponse, rawText: string) => {
@@ -116,7 +85,20 @@ export default function DashboardPage() {
         deadline: data.deadline,
         workplaceAddress: data.workplaceAddress,
         requiredSpecs: data.requiredSpecs,
-        rawText,
+        positionDetails: data.positionDetails ?? [],
+        mainTasks: data.mainTasks ?? [],
+        qualifications: data.qualifications ?? [],
+        preferredQualifications: data.preferredQualifications ?? [],
+        hiringProcess: data.hiringProcess ?? [],
+        rawText: data.rawText ?? rawText,
+        sourceUrl: data.sourceUrl,
+        sourceType: data.sourceType,
+        parserVersion: CURRENT_JOB_PARSER_VERSION,
+        parsedAt: new Date().toISOString(),
+        salary: data.salary ?? "미확인",
+        employmentType: data.employmentType ?? "미확인",
+        experienceLevel: data.experienceLevel ?? "미확인",
+        memo: "",
         createdAt: new Date().toISOString(),
         status: "관심",
       };
@@ -127,6 +109,60 @@ export default function DashboardPage() {
     [addJob]
   );
 
+  useEffect(() => {
+    if (!isLoaded) return;
+
+    const jobsToUpgrade = jobs.filter((job) => {
+      if ((job.parserVersion ?? 0) >= CURRENT_JOB_PARSER_VERSION) return false;
+      if (upgradingIdsRef.current.has(job.id)) return false;
+      return Boolean(getJobRefreshPayload(job));
+    });
+
+    if (jobsToUpgrade.length === 0) return;
+
+    jobsToUpgrade.forEach((job) => upgradingIdsRef.current.add(job.id));
+    setUpgradeProgress({ total: jobsToUpgrade.length, done: 0, running: true });
+
+    void (async () => {
+      let done = 0;
+      for (const job of jobsToUpgrade) {
+        const payload = getJobRefreshPayload(job);
+        if (!payload) continue;
+
+        try {
+          const res = await fetch("/api/parse-job", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+          });
+          const data = (await res.json()) as ParseJobResponse & { error?: string };
+          if (!res.ok) throw new Error(data.error || "공고 정보 업데이트에 실패했습니다.");
+
+          const mergedJob = mergeParsedJob(job, data, payload);
+          updateJob(mergedJob);
+          setSelectedJob((prev) => (prev?.id === job.id ? mergedJob : prev));
+        } catch (error) {
+          const failedJob = {
+            ...job,
+            parserVersion: CURRENT_JOB_PARSER_VERSION,
+            parsedAt: new Date().toISOString(),
+            lastParseError:
+              error instanceof Error ? error.message : "공고 정보 업데이트에 실패했습니다.",
+          };
+          updateJob(failedJob);
+          setSelectedJob((prev) => (prev?.id === job.id ? failedJob : prev));
+        } finally {
+          done += 1;
+          setUpgradeProgress({
+            total: jobsToUpgrade.length,
+            done,
+            running: done < jobsToUpgrade.length,
+          });
+        }
+      }
+    })();
+  }, [isLoaded, jobs, updateJob]);
+
   const handleUpdateJob = useCallback(
     (updated: JobPosting) => {
       updateJob(updated);
@@ -135,13 +171,32 @@ export default function DashboardPage() {
     [updateJob]
   );
 
-  const handleDeleteJob = useCallback(
-    (id: string, e: React.MouseEvent) => {
+  const requestDeleteJob = useCallback(
+    (job: JobPosting, e: React.MouseEvent) => {
       e.stopPropagation();
-      deleteJob(id);
-      if (selectedJob?.id === id) setSelectedJob(null);
+      setJobToDelete(job);
     },
-    [deleteJob, selectedJob]
+    []
+  );
+
+  const confirmDeleteJob = useCallback(() => {
+    if (!jobToDelete) return;
+    const id = jobToDelete.id;
+    deleteJob(id);
+    if (selectedJob?.id === id) setSelectedJob(null);
+    setJobToDelete(null);
+  }, [deleteJob, jobToDelete, selectedJob]);
+
+  const cancelDeleteJob = useCallback(() => {
+    setJobToDelete(null);
+  }, []);
+
+  const selectJob = useCallback(
+    (job: JobPosting) => {
+      const latest = jobs.find((j) => j.id === job.id) ?? job;
+      setSelectedJob(latest);
+    },
+    [jobs]
   );
 
   // 상태 필터 + D-Day 기반 분리
@@ -153,10 +208,21 @@ export default function DashboardPage() {
       ? jobs
       : jobs.filter((j) => j.status === activeFilter);
 
-  const activeJobs = filteredJobs.filter(
+  const sortedJobs = [...filteredJobs].sort((a, b) => {
+    if (sortMode === "fitScore") {
+      const scoreDiff = (b.fitScore ?? -1) - (a.fitScore ?? -1);
+      if (scoreDiff !== 0) return scoreDiff;
+    }
+
+    const aDeadline = a.deadline ? new Date(a.deadline).getTime() : Number.POSITIVE_INFINITY;
+    const bDeadline = b.deadline ? new Date(b.deadline).getTime() : Number.POSITIVE_INFINITY;
+    return aDeadline - bDeadline;
+  });
+
+  const activeJobs = sortedJobs.filter(
     (j) => !j.deadline || new Date(j.deadline) >= today
   );
-  const expiredJobs = filteredJobs.filter(
+  const expiredJobs = sortedJobs.filter(
     (j) => j.deadline && new Date(j.deadline) < today
   );
 
@@ -218,6 +284,16 @@ export default function DashboardPage() {
           </div>
         )}
 
+        {upgradeProgress?.running && (
+          <div className="flex items-center gap-2 rounded-xl border border-blue-100 bg-blue-50 px-4 py-3 text-xs font-medium text-blue-600">
+            <Loader2 className="h-4 w-4 animate-spin" />
+            기존 공고에 최신 파서와 위치 추출 기준을 적용 중입니다.
+            <span className="ml-auto text-blue-400">
+              {upgradeProgress.done}/{upgradeProgress.total}
+            </span>
+          </div>
+        )}
+
         {/* 통계 카드 */}
         <div className="grid grid-cols-3 gap-3">
           <StatCard label="전체 공고" value={jobs.length} color="text-gray-700" />
@@ -267,8 +343,60 @@ export default function DashboardPage() {
           })}
         </div>
 
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex gap-2 overflow-x-auto pb-1">
+            <button
+              onClick={() => setSortMode("deadline")}
+              className={`shrink-0 inline-flex items-center gap-1.5 rounded-lg border px-3 py-2 text-xs font-semibold transition-colors ${
+                sortMode === "deadline"
+                  ? "border-blue-200 bg-blue-50 text-blue-600"
+                  : "border-gray-100 bg-white text-gray-500 hover:border-blue-200 hover:text-blue-500"
+              }`}
+            >
+              <Clock3 className="w-3.5 h-3.5" />
+              마감임박순
+            </button>
+            <button
+              onClick={() => setSortMode("fitScore")}
+              className={`shrink-0 inline-flex items-center gap-1.5 rounded-lg border px-3 py-2 text-xs font-semibold transition-colors ${
+                sortMode === "fitScore"
+                  ? "border-blue-200 bg-blue-50 text-blue-600"
+                  : "border-gray-100 bg-white text-gray-500 hover:border-blue-200 hover:text-blue-500"
+              }`}
+            >
+              <Target className="w-3.5 h-3.5" />
+              타겟 적합도순
+            </button>
+          </div>
+
+          <div className="inline-flex w-fit overflow-hidden rounded-lg border border-gray-100 bg-white text-xs font-semibold">
+            <button
+              onClick={() => setViewMode("list")}
+              className={`inline-flex items-center gap-1.5 px-3 py-2 transition-colors ${
+                viewMode === "list" ? "bg-gray-900 text-white" : "text-gray-500 hover:bg-gray-50"
+              }`}
+            >
+              <List className="w-3.5 h-3.5" />
+              목록
+            </button>
+            <button
+              onClick={() => setViewMode("calendar")}
+              className={`inline-flex items-center gap-1.5 px-3 py-2 transition-colors ${
+                viewMode === "calendar" ? "bg-gray-900 text-white" : "text-gray-500 hover:bg-gray-50"
+              }`}
+            >
+              <CalendarDays className="w-3.5 h-3.5" />
+              달력
+            </button>
+          </div>
+        </div>
+
+        {viewMode === "calendar" && (
+          <DeadlineCalendar jobs={sortedJobs} onSelectJob={selectJob} />
+        )}
+
         {/* 진행 중 공고 */}
-        {activeJobs.length > 0 && (
+        {viewMode === "list" && activeJobs.length > 0 && (
           <section className="space-y-3">
             {activeFilter === "전체" && (
               <h2 className="text-sm font-semibold text-gray-700">진행 중인 공고</h2>
@@ -276,9 +404,9 @@ export default function DashboardPage() {
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               {activeJobs.map((job) => (
                 <div key={job.id} className="relative group">
-                  <JobCard job={job} onClick={() => setSelectedJob(job)} />
+                  <JobCard job={job} onClick={() => selectJob(job)} />
                   <button
-                    onClick={(e) => handleDeleteJob(job.id, e)}
+                    onClick={(e) => requestDeleteJob(job, e)}
                     className="absolute top-3 right-[52px] opacity-0 group-hover:opacity-100
                                transition-opacity p-1 rounded-lg hover:bg-red-50
                                text-gray-300 hover:text-red-400"
@@ -293,15 +421,15 @@ export default function DashboardPage() {
         )}
 
         {/* 마감된 공고 */}
-        {expiredJobs.length > 0 && (
+        {viewMode === "list" && expiredJobs.length > 0 && (
           <section className="space-y-3">
             <h2 className="text-sm font-semibold text-gray-400">마감된 공고</h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 opacity-60">
               {expiredJobs.map((job) => (
                 <div key={job.id} className="relative group">
-                  <JobCard job={job} onClick={() => setSelectedJob(job)} />
+                  <JobCard job={job} onClick={() => selectJob(job)} />
                   <button
-                    onClick={(e) => handleDeleteJob(job.id, e)}
+                    onClick={(e) => requestDeleteJob(job, e)}
                     className="absolute top-3 right-[52px] opacity-0 group-hover:opacity-100
                                transition-opacity p-1 rounded-lg hover:bg-red-50
                                text-gray-300 hover:text-red-400"
@@ -346,10 +474,45 @@ export default function DashboardPage() {
       {/* 상세 모달 */}
       {selectedJob && (
         <JobModal
+          key={`${selectedJob.id}-${selectedJob.parserVersion ?? 0}-${selectedJob.parsedAt ?? ""}`}
           job={selectedJob}
           onClose={() => setSelectedJob(null)}
           onUpdate={handleUpdateJob}
         />
+      )}
+
+      {jobToDelete && (
+        <div
+          className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 px-4"
+          onClick={cancelDeleteJob}
+        >
+          <div
+            className="w-full max-w-sm rounded-2xl bg-white p-5 shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h2 className="text-base font-bold text-gray-900">공고를 삭제할까요?</h2>
+            <p className="mt-2 text-sm text-gray-500 leading-relaxed">
+              <span className="font-semibold text-gray-800">
+                {jobToDelete.companyName} - {jobToDelete.jobTitle}
+              </span>
+              을(를) 목록에서 삭제합니다.
+            </p>
+            <div className="mt-5 flex justify-end gap-2">
+              <button
+                onClick={cancelDeleteJob}
+                className="rounded-lg border border-gray-100 px-4 py-2 text-sm font-semibold text-gray-500 hover:bg-gray-50"
+              >
+                취소
+              </button>
+              <button
+                onClick={confirmDeleteJob}
+                className="rounded-lg bg-red-500 px-4 py-2 text-sm font-semibold text-white hover:bg-red-600"
+              >
+                삭제
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

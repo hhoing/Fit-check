@@ -1,6 +1,6 @@
 "use client";
 
-import { Building2, Calendar, MapPin } from "lucide-react";
+import { Building2, Calendar, MapPin, NotebookPen } from "lucide-react";
 import { JobPosting } from "@/types";
 import { STATUS_CONFIG } from "@/lib/constants";
 
@@ -25,6 +25,9 @@ export default function JobCard({ job, onClick }: JobCardProps) {
   const { label: dDay, urgent } = calcDDay(job.deadline);
   const score = job.fitScore;
   const statusCfg = STATUS_CONFIG[job.status ?? "관심"];
+  const hasJobMeta = [job.experienceLevel, job.employmentType, job.salary].some(
+    (value) => value && value !== "미확인"
+  );
 
   const scoreColor =
     score !== undefined
@@ -55,17 +58,24 @@ export default function JobCard({ job, onClick }: JobCardProps) {
             </p>
           </div>
         </div>
-        <span
-          className={`shrink-0 text-xs font-bold px-2.5 py-1 rounded-full
-            ${dDay === "마감"
-              ? "bg-gray-100 text-gray-400"
-              : urgent
-              ? "bg-red-50 text-red-500 ring-1 ring-red-200"
-              : "bg-blue-50 text-blue-600"
-            }`}
-        >
-          {dDay}
-        </span>
+        <div className="flex shrink-0 flex-col items-end gap-1">
+          {job.status === "서류 제출" && (
+            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-50 text-blue-600 ring-1 ring-blue-100">
+              ✅ 제출
+            </span>
+          )}
+          <span
+            className={`text-xs font-bold px-2.5 py-1 rounded-full
+              ${dDay === "마감"
+                ? "bg-gray-100 text-gray-400"
+                : urgent
+                ? "bg-red-50 text-red-500 ring-1 ring-red-200"
+                : "bg-blue-50 text-blue-600"
+              }`}
+          >
+            {dDay}
+          </span>
+        </div>
       </div>
 
       {/* 근무지 */}
@@ -77,21 +87,30 @@ export default function JobCard({ job, onClick }: JobCardProps) {
       )}
 
       {/* 요구 스펙 태그 */}
-      {job.requiredSpecs.length > 0 && (
+      {hasJobMeta && (
         <div className="flex flex-wrap gap-1.5">
-          {job.requiredSpecs.slice(0, 3).map((spec, i) => (
-            <span
-              key={i}
-              className="text-[11px] bg-gray-50 text-gray-500 px-2 py-0.5 rounded-full border border-gray-100"
-            >
-              {spec.length > 16 ? spec.slice(0, 16) + "…" : spec}
-            </span>
-          ))}
-          {job.requiredSpecs.length > 3 && (
-            <span className="text-[11px] text-gray-400">
-              +{job.requiredSpecs.length - 3}
+          {job.experienceLevel && job.experienceLevel !== "미확인" && (
+            <span className="text-[11px] bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full border border-blue-100">
+              {job.experienceLevel}
             </span>
           )}
+          {job.employmentType && job.employmentType !== "미확인" && (
+            <span className="text-[11px] bg-emerald-50 text-emerald-600 px-2 py-0.5 rounded-full border border-emerald-100">
+              {job.employmentType.length > 16 ? job.employmentType.slice(0, 16) + "…" : job.employmentType}
+            </span>
+          )}
+          {job.salary && job.salary !== "미확인" && (
+            <span className="text-[11px] bg-amber-50 text-amber-600 px-2 py-0.5 rounded-full border border-amber-100">
+              {job.salary.length > 16 ? job.salary.slice(0, 16) + "…" : job.salary}
+            </span>
+          )}
+        </div>
+      )}
+
+      {job.memo?.trim() && (
+        <div className="flex items-start gap-1.5 rounded-lg bg-yellow-50/80 px-2.5 py-2 text-xs text-yellow-800 border border-yellow-100">
+          <NotebookPen className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+          <span className="line-clamp-2 break-words">{job.memo}</span>
         </div>
       )}
 

@@ -7,12 +7,12 @@ interface GaugeChartProps {
 }
 
 export default function GaugeChart({ score }: GaugeChartProps) {
-  const clamped = Math.max(0, Math.min(100, score));
+  const clamped = Math.round(Math.max(0, Math.min(100, score)));
 
   // SVG 반원 게이지 파라미터
-  const R = 80;
-  const cx = 100;
-  const cy = 100;
+  const R = 82;
+  const cx = 120;
+  const cy = 112;
   const startAngle = Math.PI; // 왼쪽 (180°)
   const endAngle = 0;         // 오른쪽 (0°)
   const totalArc = Math.PI;   // 반원
@@ -26,10 +26,9 @@ export default function GaugeChart({ score }: GaugeChartProps) {
   const start = toXY(startAngle);
   const end = toXY(endAngle);
   const fill = toXY(scoreAngle);
-  const largeArc = clamped > 50 ? 1 : 0;
 
-  const trackPath = `M ${start.x} ${start.y} A ${R} ${R} 0 1 1 ${end.x} ${end.y}`;
-  const fillPath = `M ${start.x} ${start.y} A ${R} ${R} 0 ${largeArc} 1 ${fill.x} ${fill.y}`;
+  const trackPath = `M ${start.x} ${start.y} A ${R} ${R} 0 0 1 ${end.x} ${end.y}`;
+  const fillPath = `M ${start.x} ${start.y} A ${R} ${R} 0 0 1 ${fill.x} ${fill.y}`;
 
   const color = useMemo(() => {
     if (clamped >= 75) return { stroke: "#3b82f6", text: "text-blue-500" };
@@ -37,23 +36,29 @@ export default function GaugeChart({ score }: GaugeChartProps) {
     return { stroke: "#ef4444", text: "text-red-500" };
   }, [clamped]);
 
-  const percentileText = useMemo(() => {
-    if (clamped >= 90) return "상위 10% 수준";
-    if (clamped >= 75) return "상위 25% 수준";
-    if (clamped >= 60) return "상위 40% 수준";
-    if (clamped >= 45) return "상위 55% 수준";
-    return "하위 50% 수준";
+  const fitLabel = useMemo(() => {
+    if (clamped >= 85) return "강한 적합";
+    if (clamped >= 70) return "주요 타겟";
+    if (clamped >= 55) return "검토 가능";
+    if (clamped >= 40) return "보완 필요";
+    return "낮은 적합";
   }, [clamped]);
 
   return (
     <div className="flex flex-col items-center">
-      <svg width="200" height="120" viewBox="0 0 200 120">
+      <svg
+        className="w-full max-w-[240px]"
+        height="150"
+        viewBox="0 0 240 150"
+        role="img"
+        aria-label={`타겟 적합도 ${clamped}점`}
+      >
         {/* 배경 트랙 */}
         <path
           d={trackPath}
           fill="none"
           stroke="#e5e7eb"
-          strokeWidth="16"
+          strokeWidth="18"
           strokeLinecap="round"
         />
         {/* 점수 채움 */}
@@ -62,17 +67,17 @@ export default function GaugeChart({ score }: GaugeChartProps) {
             d={fillPath}
             fill="none"
             stroke={color.stroke}
-            strokeWidth="16"
+            strokeWidth="18"
             strokeLinecap="round"
           />
         )}
         {/* 점수 텍스트 */}
         <text
           x={cx}
-          y={cy + 4}
+          y={cy - 13}
           textAnchor="middle"
           dominantBaseline="middle"
-          fontSize="28"
+          fontSize="34"
           fontWeight="bold"
           fill={color.stroke}
         >
@@ -80,22 +85,22 @@ export default function GaugeChart({ score }: GaugeChartProps) {
         </text>
         <text
           x={cx}
-          y={cy + 24}
+          y={cy + 10}
           textAnchor="middle"
           fontSize="11"
-          fill="#6b7280"
+          fill="#9ca3af"
         >
-          / 100
+          타겟 적합도
         </text>
         {/* 눈금 라벨 */}
-        <text x="16" y="108" fontSize="9" fill="#9ca3af">0</text>
-        <text x="93" y="22" fontSize="9" fill="#9ca3af">50</text>
-        <text x="175" y="108" fontSize="9" fill="#9ca3af">100</text>
+        <text x="32" y="136" fontSize="10" fill="#9ca3af">0</text>
+        <text x="114" y="24" fontSize="10" textAnchor="middle" fill="#9ca3af">50</text>
+        <text x="205" y="136" fontSize="10" fill="#9ca3af">100</text>
       </svg>
       <p className={`text-sm font-semibold mt-1 ${color.text}`}>
-        {percentileText}
+        {fitLabel}
       </p>
-      <p className="text-xs text-gray-400 mt-0.5">AI 서류 합격률 예측</p>
+      <p className="text-xs text-gray-400 mt-0.5">커리어 타겟 기준 분석</p>
     </div>
   );
 }
