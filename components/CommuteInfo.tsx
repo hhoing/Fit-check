@@ -59,6 +59,12 @@ export default function CommuteInfo({ destination, commuteInfo }: CommuteInfoPro
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const canCalculate = hasUsableDestination(destination);
+  const needsCommuteRefresh =
+    canCalculate &&
+    (!commuteInfo ||
+      !commuteInfo.staticMapUrl ||
+      !commuteInfo.originPoint ||
+      !commuteInfo.destinationPoint);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -66,7 +72,7 @@ export default function CommuteInfo({ destination, commuteInfo }: CommuteInfoPro
       setApiInfo(null);
       setError(null);
 
-      if (commuteInfo || !canCalculate) {
+      if (!needsCommuteRefresh) {
         setLoading(false);
         return;
       }
@@ -99,9 +105,9 @@ export default function CommuteInfo({ destination, commuteInfo }: CommuteInfoPro
       controller.abort();
       window.clearTimeout(timer);
     };
-  }, [canCalculate, commuteInfo, destination]);
+  }, [destination, needsCommuteRefresh]);
 
-  const info = commuteInfo ?? apiInfo;
+  const info = apiInfo ?? commuteInfo;
   const distanceLabel = useMemo(() => formatDistance(info?.distance), [info?.distance]);
 
   if (!canCalculate) {
@@ -141,7 +147,7 @@ export default function CommuteInfo({ destination, commuteInfo }: CommuteInfoPro
   const destinationLabel = apiInfo?.destination ?? destination;
   const isDrivingReference = info?.method === "자동차 참고";
   const CommuteIcon = isDrivingReference ? Car : Train;
-  const canShowMap = Boolean(info?.mapClientId && info.originPoint && info.destinationPoint);
+  const canShowMap = Boolean(info?.staticMapUrl);
 
   return (
     <div className="bg-slate-50 rounded-xl p-4 border border-slate-100 space-y-3">
@@ -190,19 +196,13 @@ export default function CommuteInfo({ destination, commuteInfo }: CommuteInfoPro
             </div>
           </div>
           <RouteMap
-            clientId={info.mapClientId}
-            originPoint={info.originPoint}
-            destinationPoint={info.destinationPoint}
-            routePath={info.routePath}
+            staticMapUrl={info.staticMapUrl}
           />
         </div>
       ) : canShowMap && info ? (
         <div className="space-y-3">
           <RouteMap
-            clientId={info.mapClientId}
-            originPoint={info.originPoint}
-            destinationPoint={info.destinationPoint}
-            routePath={info.routePath}
+            staticMapUrl={info.staticMapUrl}
           />
         </div>
       ) : (
