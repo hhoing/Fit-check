@@ -2014,16 +2014,14 @@ function getUsefulLines(text: string): string[] {
 }
 
 function extractDeadline(text: string): string | null {
-  if (/(?:마감일|마감|접수기간|접수\s*기간|지원\s*기간|validThrough)\s*[:：]?\s*.{0,80}?(상시\s*채용|상시|채용\s*시|수시\s*채용|수시)/i.test(text)) {
-    return ONGOING_DEADLINE_LABEL;
-  }
-  if (/(상시\s*채용|채용\s*시\s*마감|채용\s*시까지|수시\s*채용)/i.test(text)) {
-    return ONGOING_DEADLINE_LABEL;
-  }
-
   const lines = text.split(/\r?\n/);
   const deadlineLines = lines.filter((line) => /(마감|접수|기간|지원\s*기간|validThrough)/i.test(line));
   const searchText = deadlineLines.length > 0 ? deadlineLines.join("\n") : text;
+  const hasOngoingDeadlineLine = deadlineLines.some((line) =>
+    /(?:마감일|마감|접수기간|접수\s*기간|지원\s*기간)\s*[:：]?\s*.{0,80}?(상시\s*채용|상시|채용\s*시|수시\s*채용|수시)/i.test(line)
+  );
+
+  if (hasOngoingDeadlineLine) return ONGOING_DEADLINE_LABEL;
 
   const fullDates = [...searchText.matchAll(/(20\d{2})\s*[.\-/년]\s*(\d{1,2})\s*[.\-/월]\s*(\d{1,2})/g)];
   if (fullDates.length > 0) {
@@ -2246,10 +2244,7 @@ async function getFallbackParseResult(
   const positionDetails = uniquePositionDetails(metadata.positionDetails ?? [], 8);
   const fallbackSpecs = extractRequiredSpecs(lines, metadata);
   const extractedDeadline = extractDeadline(combinedText);
-  const deadline =
-    extractedDeadline === ONGOING_DEADLINE_LABEL
-      ? extractedDeadline
-      : metadata.deadline ?? extractedDeadline;
+  const deadline = metadata.deadline ?? extractedDeadline;
 
   return refineParseResultWorkplace({
     companyName: extractCompanyName(lines, metadata),
@@ -2294,7 +2289,10 @@ function chooseField(value: unknown, fallback: string): string {
 function chooseDeadline(value: unknown, fallback: string | null): string | null {
   if (isOngoingDeadline(fallback)) return ONGOING_DEADLINE_LABEL;
   if (typeof value !== "string") return fallback;
-  const normalized = extractDeadline(value) ?? normalizeIsoDate(value);
+  const normalized =
+    normalizeIsoDate(value) ??
+    extractDeadline(value) ??
+    (isOngoingDeadline(value) && !fallback ? ONGOING_DEADLINE_LABEL : null);
   return normalized ?? fallback;
 }
 
