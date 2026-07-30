@@ -13,10 +13,21 @@ import {
   Target,
   X,
 } from "lucide-react";
-import { AnalyzeFitResponse, JobPosting, JobStatus, ParseJobResponse } from "@/types";
+import {
+  AnalyzeFitResponse,
+  JobPosting,
+  JobStatus,
+  ParseJobResponse,
+  type JobCategory,
+} from "@/types";
 import { STATUS_LIST, STATUS_CONFIG } from "@/lib/constants";
 import { getDeadlineSortTime, isDeadlineExpired } from "@/lib/deadline";
 import { CURRENT_JOB_PARSER_VERSION } from "@/lib/jobParserVersion";
+import {
+  JOB_CATEGORY_CONFIG,
+  JOB_CATEGORY_LIST,
+  withJobCategories,
+} from "@/lib/jobCategories";
 import { useJobs } from "@/hooks/useJobs";
 import JobCard from "@/components/JobCard";
 import JobInput from "@/components/JobInput";
@@ -34,6 +45,8 @@ const STATUS_FILTER_TABS = STATUS_LIST.filter(
   (status): status is StatusFilterTab => status !== "관심"
 );
 const FILTER_TABS: FilterTab[] = ["전체", "즐겨찾기", ...STATUS_FILTER_TABS];
+type CategoryFilterTab = "전체" | JobCategory;
+const CATEGORY_FILTER_TABS: CategoryFilterTab[] = ["전체", ...JOB_CATEGORY_LIST];
 type SortMode = "deadline" | "fitScore";
 type ViewMode = "list" | "calendar";
 
@@ -53,7 +66,7 @@ function mergeParsedJob(
   data: ParseJobResponse,
   payload: RefreshPayload
 ): JobPosting {
-  return {
+  return withJobCategories({
     ...job,
     companyName: data.companyName,
     jobTitle: data.jobTitle,
@@ -78,7 +91,7 @@ function mergeParsedJob(
     commuteTime: undefined,
     fitScore: job.fitScore,
     fitAnalysis: job.fitAnalysis,
-  };
+  });
 }
 
 export default function DashboardPage() {
@@ -87,6 +100,7 @@ export default function DashboardPage() {
   const [jobToDelete, setJobToDelete] = useState<JobPosting | null>(null);
   const [showInput, setShowInput] = useState(false);
   const [activeFilter, setActiveFilter] = useState<FilterTab>("전체");
+  const [activeCategory, setActiveCategory] = useState<CategoryFilterTab>("전체");
   const [sortMode, setSortMode] = useState<SortMode>("deadline");
   const [viewMode, setViewMode] = useState<ViewMode>("list");
   const [showScrollTop, setShowScrollTop] = useState(false);
@@ -157,7 +171,7 @@ export default function DashboardPage() {
 
   const handleParsed = useCallback(
     (data: ParseJobResponse, rawText: string) => {
-      const newJob: JobPosting = {
+      const newJob: JobPosting = withJobCategories({
         id: `job-${Date.now()}`,
         companyName: data.companyName,
         jobTitle: data.jobTitle,
@@ -182,7 +196,7 @@ export default function DashboardPage() {
         isFavorite: false,
         createdAt: new Date().toISOString(),
         status: "관심",
-      };
+      });
       addJob(newJob);
       setShowInput(false);
       setSelectedJob(newJob);
@@ -318,12 +332,17 @@ export default function DashboardPage() {
   // 상태 필터 + D-Day 기반 분리
   const now = new Date();
 
-  const filteredJobs =
+  const statusFilteredJobs =
     activeFilter === "전체"
       ? jobs
       : activeFilter === "즐겨찾기"
       ? jobs.filter((j) => j.isFavorite)
       : jobs.filter((j) => j.status === activeFilter);
+
+  const filteredJobs =
+    activeCategory === "전체"
+      ? statusFilteredJobs
+      : statusFilteredJobs.filter((j) => j.jobCategories?.includes(activeCategory));
 
   const sortedJobs = [...filteredJobs].sort((a, b) => {
     if (sortMode === "fitScore") {
@@ -342,7 +361,9 @@ export default function DashboardPage() {
   const expiredJobCount = jobs.filter((j) => isDeadlineExpired(j.deadline, j.deadlineTime, now)).length;
   const favoriteJobCount = jobs.filter((j) => j.isFavorite).length;
   const emptyFilterMessage =
-    activeFilter === "즐겨찾기"
+    activeCategory !== "전체"
+      ? `${activeCategory} 직무 필터에 맞는 공고가 없습니다.`
+      : activeFilter === "즐겨찾기"
       ? "즐겨찾기한 공고가 없습니다."
       : `'${activeFilter}' 상태의 공고가 없습니다.`;
 
@@ -350,6 +371,13 @@ export default function DashboardPage() {
   const countByStatus = STATUS_LIST.reduce(
     (acc, s) => ({ ...acc, [s]: jobs.filter((j) => j.status === s).length }),
     {} as Record<JobStatus, number>
+  );
+  const countByCategory = JOB_CATEGORY_LIST.reduce(
+    (acc, category) => ({
+      ...acc,
+      [category]: statusFilteredJobs.filter((j) => j.jobCategories?.includes(category)).length,
+    }),
+    {} as Record<JobCategory, number>
   );
 
   return (
@@ -465,6 +493,38 @@ export default function DashboardPage() {
                 <span
                   className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full
                   ${isActive ? "bg-white/30" : "bg-gray-100 text-gray-400"}`}
+                >
+                  {count}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+
+        <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1 scrollbar-hide">
+          {CATEGORY_FILTER_TABS.map((category) => {
+            const isActive = activeCategory === category;
+            const count = category === "전체" ? statusFilteredJobs.length : countByCategory[category];
+            const cfg = category === "전체" ? null : JOB_CATEGORY_CONFIG[category];
+
+            return (
+              <button
+                key={category}
+                onClick={() => setActiveCategory(category)}
+                className={`shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold
+                  transition-all border
+                  ${
+                    isActive
+                      ? cfg
+                        ? `${cfg.active} ring-1`
+                        : "border-gray-900 bg-gray-900 text-white"
+                      : "bg-white text-gray-500 border-gray-100 hover:border-blue-200 hover:text-blue-500"
+                  }`}
+              >
+                {category}
+                <span
+                  className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full
+                  ${isActive ? "bg-white/40" : "bg-gray-100 text-gray-400"}`}
                 >
                   {count}
                 </span>

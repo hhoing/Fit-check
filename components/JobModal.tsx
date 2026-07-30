@@ -28,6 +28,7 @@ import {
 import { STATUS_LIST, STATUS_CONFIG } from "@/lib/constants";
 import { CURRENT_JOB_PARSER_VERSION } from "@/lib/jobParserVersion";
 import { formatDeadlineLong } from "@/lib/deadline";
+import { JOB_CATEGORY_CONFIG, withJobCategories } from "@/lib/jobCategories";
 import { useToast } from "@/components/Toast";
 import GaugeChart from "./GaugeChart";
 import FitAnalysis from "./FitAnalysis";
@@ -122,7 +123,7 @@ export default function JobModal({ job, onClose, onUpdate, onRequestDelete }: Jo
       const data = (await res.json()) as ParseJobResponse & { error?: string };
       if (!res.ok) throw new Error(data.error || "공고 정보 재추출에 실패했습니다.");
 
-      const refreshed: JobPosting = {
+      const refreshed: JobPosting = withJobCategories({
         ...localJob,
         companyName: data.companyName,
         jobTitle: data.jobTitle,
@@ -147,7 +148,7 @@ export default function JobModal({ job, onClose, onUpdate, onRequestDelete }: Jo
         commuteTime: undefined,
         fitScore: localJob.fitScore,
         fitAnalysis: localJob.fitAnalysis,
-      };
+      });
 
       setLocalJob(refreshed);
       onUpdate(refreshed);
@@ -202,6 +203,7 @@ export default function JobModal({ job, onClose, onUpdate, onRequestDelete }: Jo
   const hasPositionPreferred = (localJob.positionDetails ?? []).some(
     (detail) => (detail.preferredQualifications ?? []).length > 0
   );
+  const jobCategories = localJob.jobCategories ?? [];
 
   return (
     <div
@@ -231,6 +233,21 @@ export default function JobModal({ job, onClose, onUpdate, onRequestDelete }: Jo
               <h2 className="text-base sm:text-lg font-bold text-gray-900 truncate leading-tight">
                 {localJob.jobTitle}
               </h2>
+              {jobCategories.length > 0 && (
+                <div className="mt-1.5 flex flex-wrap gap-1">
+                  {jobCategories.map((category) => {
+                    const cfg = JOB_CATEGORY_CONFIG[category];
+                    return (
+                      <span
+                        key={category}
+                        className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full border ${cfg.bg} ${cfg.text} ${cfg.border}`}
+                      >
+                        {category}
+                      </span>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           </div>
           <div className="flex shrink-0 items-center gap-1">

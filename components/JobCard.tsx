@@ -4,6 +4,7 @@ import { Building2, Calendar, MapPin, NotebookPen, Star } from "lucide-react";
 import { JobPosting } from "@/types";
 import { STATUS_CONFIG } from "@/lib/constants";
 import { formatDeadlineShort, getDeadlineBadge } from "@/lib/deadline";
+import { JOB_CATEGORY_CONFIG } from "@/lib/jobCategories";
 
 interface JobCardProps {
   job: JobPosting;
@@ -15,6 +16,7 @@ export default function JobCard({ job, onClick, onToggleFavorite }: JobCardProps
   const { label: dDay, urgent } = getDeadlineBadge(job.deadline, job.deadlineTime);
   const score = job.fitScore;
   const statusCfg = STATUS_CONFIG[job.status ?? "관심"];
+  const jobCategories = job.jobCategories ?? [];
   const hasJobMeta = [job.experienceLevel, job.employmentType, job.salary].some(
     (value) => value && value !== "미확인"
   );
@@ -101,6 +103,22 @@ export default function JobCard({ job, onClick, onToggleFavorite }: JobCardProps
         <div className="flex items-center gap-1.5 text-xs text-gray-400">
           <MapPin className="w-3.5 h-3.5 shrink-0" />
           <span className="truncate">{job.workplaceAddress}</span>
+        </div>
+      )}
+
+      {jobCategories.length > 0 && (
+        <div className="flex flex-wrap gap-1.5">
+          {jobCategories.map((category) => {
+            const cfg = JOB_CATEGORY_CONFIG[category];
+            return (
+              <span
+                key={category}
+                className={`text-[11px] font-bold px-2 py-0.5 rounded-full border ${cfg.bg} ${cfg.text} ${cfg.border}`}
+              >
+                {category}
+              </span>
+            );
+          })}
         </div>
       )}
 

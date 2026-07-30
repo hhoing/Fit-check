@@ -6,6 +6,10 @@ export type JobStatus =
   | "합격"
   | "불합격";
 
+export type JobCategory = "Data" | "Sensor" | "Vision" | "Robot";
+export type JobPrimaryCategory = JobCategory | "Unclassified";
+export type JobCategoryScores = Record<JobCategory, number>;
+
 export interface JobPosting {
   id: string;
   companyName: string;
@@ -25,6 +29,9 @@ export interface JobPosting {
   parserVersion?: number;
   parsedAt?: string;
   lastParseError?: string;
+  jobCategories?: JobCategory[];
+  primaryCategory?: JobPrimaryCategory;
+  categoryScores?: JobCategoryScores;
   salary?: string;
   employmentType?: string;
   experienceLevel?: "신입" | "경력" | "신입/경력" | "경력무관" | "미확인";
