@@ -2,22 +2,37 @@
 
 import { useState } from "react";
 import { AlertCircle, Link, Loader2, Plus, X } from "lucide-react";
-import { ParseJobResponse } from "@/types";
+import { JobCategory, ParseJobResponse } from "@/types";
+import { JOB_CATEGORY_CONFIG, JOB_CATEGORY_LIST } from "@/lib/jobCategories";
 import { useToast } from "@/components/Toast";
 
 interface JobInputProps {
-  onParsed: (data: ParseJobResponse, rawText: string) => void;
+  onParsed: (data: ParseJobResponse, rawText: string, jobCategories: JobCategory[]) => void;
 }
 
 export default function JobInput({ onParsed }: JobInputProps) {
   const [input, setInput] = useState("");
+  const [selectedCategories, setSelectedCategories] = useState<JobCategory[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { toast } = useToast();
 
+  const toggleCategory = (category: JobCategory) => {
+    setSelectedCategories((prev) =>
+      prev.includes(category)
+        ? prev.filter((item) => item !== category)
+        : [...prev, category]
+    );
+    setError(null);
+  };
+
   const handleSubmit = async () => {
     const trimmed = input.trim();
     if (!trimmed) return;
+    if (selectedCategories.length === 0) {
+      setError("직무 카테고리를 하나 이상 선택해주세요.");
+      return;
+    }
 
     setLoading(true);
     setError(null);
@@ -36,8 +51,9 @@ export default function JobInput({ onParsed }: JobInputProps) {
       }
 
       const data: ParseJobResponse = await res.json();
-      onParsed(data, data.rawText ?? `URL: ${trimmed}`);
+      onParsed(data, data.rawText ?? `URL: ${trimmed}`, selectedCategories);
       setInput("");
+      setSelectedCategories([]);
       setError(null);
       toast(
         data.parserMode === "fallback"
@@ -59,6 +75,31 @@ export default function JobInput({ onParsed }: JobInputProps) {
         <div className="flex items-center gap-1.5 rounded-lg border border-blue-100 bg-blue-50 px-2.5 py-1.5 text-xs font-semibold text-blue-600">
           <Link className="w-3.5 h-3.5" />
           URL
+        </div>
+      </div>
+
+      <div className="space-y-2">
+        <p className="text-xs font-semibold text-gray-500">직무 카테고리</p>
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+          {JOB_CATEGORY_LIST.map((category) => {
+            const cfg = JOB_CATEGORY_CONFIG[category];
+            const isActive = selectedCategories.includes(category);
+            return (
+              <button
+                key={category}
+                type="button"
+                onClick={() => toggleCategory(category)}
+                disabled={loading}
+                className={`rounded-xl border px-3 py-2 text-xs font-bold transition-all ${
+                  isActive
+                    ? `${cfg.active} ring-1`
+                    : "border-gray-100 bg-gray-50 text-gray-400 hover:border-blue-200 hover:bg-white hover:text-blue-500"
+                }`}
+              >
+                {category}
+              </button>
+            );
+          })}
         </div>
       </div>
 
@@ -108,7 +149,7 @@ export default function JobInput({ onParsed }: JobInputProps) {
 
       <button
         onClick={handleSubmit}
-        disabled={loading || !input.trim()}
+        disabled={loading || !input.trim() || selectedCategories.length === 0}
         className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl
                    bg-blue-500 hover:bg-blue-600 text-white text-sm font-semibold
                    disabled:opacity-40 disabled:cursor-not-allowed transition-colors"

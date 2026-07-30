@@ -26,7 +26,9 @@ import { CURRENT_JOB_PARSER_VERSION } from "@/lib/jobParserVersion";
 import {
   JOB_CATEGORY_CONFIG,
   JOB_CATEGORY_LIST,
-  withJobCategories,
+  getPrimaryJobCategory,
+  normalizeJobCategories,
+  withManualJobCategories,
 } from "@/lib/jobCategories";
 import { useJobs } from "@/hooks/useJobs";
 import JobCard from "@/components/JobCard";
@@ -66,7 +68,7 @@ function mergeParsedJob(
   data: ParseJobResponse,
   payload: RefreshPayload
 ): JobPosting {
-  return withJobCategories({
+  return withManualJobCategories({
     ...job,
     companyName: data.companyName,
     jobTitle: data.jobTitle,
@@ -170,8 +172,9 @@ export default function DashboardPage() {
   );
 
   const handleParsed = useCallback(
-    (data: ParseJobResponse, rawText: string) => {
-      const newJob: JobPosting = withJobCategories({
+    (data: ParseJobResponse, rawText: string, selectedCategories: JobCategory[]) => {
+      const jobCategories = normalizeJobCategories(selectedCategories);
+      const newJob: JobPosting = {
         id: `job-${Date.now()}`,
         companyName: data.companyName,
         jobTitle: data.jobTitle,
@@ -196,7 +199,10 @@ export default function DashboardPage() {
         isFavorite: false,
         createdAt: new Date().toISOString(),
         status: "관심",
-      });
+        jobCategories,
+        primaryCategory: getPrimaryJobCategory(jobCategories),
+        categorySource: "manual",
+      };
       addJob(newJob);
       setShowInput(false);
       setSelectedJob(newJob);

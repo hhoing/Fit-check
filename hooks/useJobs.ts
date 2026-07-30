@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { JobPosting, JobStatus } from "@/types";
 import { CURRENT_JOB_PARSER_VERSION } from "@/lib/jobParserVersion";
-import { withJobCategories } from "@/lib/jobCategories";
+import { withManualJobCategories } from "@/lib/jobCategories";
 import { isSupabaseConfigured, supabase } from "@/lib/supabaseClient";
 
 const STORAGE_KEY = "fit-check-jobs-v1";
@@ -23,7 +23,7 @@ function migrate(raw: unknown): JobPosting[] {
 }
 
 function normalizeJob(job: JobPosting): JobPosting {
-  return withJobCategories({
+  return withManualJobCategories({
     ...job,
     status: job.status ?? "관심",
     deadlineTime: job.deadlineTime ?? null,

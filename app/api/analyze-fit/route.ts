@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 import { AnalyzeFitRequest, AnalyzeFitResponse, JobPosting } from "@/types";
 import { RESUME_TEXT } from "@/data/resume";
-import { withJobCategories } from "@/lib/jobCategories";
+import { withManualJobCategories } from "@/lib/jobCategories";
 import {
   CAREER_AVOID_SIGNALS,
   CAREER_FIT_CRITERIA_TEXT,
@@ -100,7 +100,7 @@ function getJobText(jobPosting: JobPosting): string {
 }
 
 function normalizeJobPosting(jobPosting: JobPosting): JobPosting {
-  return withJobCategories({
+  return withManualJobCategories({
     ...jobPosting,
     companyName: jobPosting.companyName ?? "미확인",
     jobTitle: jobPosting.jobTitle ?? "미확인",
@@ -262,7 +262,7 @@ export async function POST(req: NextRequest) {
 급여: ${jobPosting.salary ?? "미확인"}
 근무형태: ${jobPosting.employmentType ?? "미확인"}
 경력구분: ${jobPosting.experienceLevel ?? "미확인"}
-자동 직무 분류: ${jobPosting.primaryCategory ?? "Unclassified"}${
+선택 직무 카테고리: ${jobPosting.primaryCategory ?? "Unclassified"}${
         jobPosting.jobCategories?.length ? ` (${jobPosting.jobCategories.join(", ")})` : ""
       }
 원본 URL: ${jobPosting.sourceUrl ?? "없음"}

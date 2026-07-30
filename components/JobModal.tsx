@@ -22,13 +22,20 @@ import {
   JobPosting,
   JobPositionDetail,
   JobStatus,
+  JobCategory,
   AnalyzeFitResponse,
   ParseJobResponse,
 } from "@/types";
 import { STATUS_LIST, STATUS_CONFIG } from "@/lib/constants";
 import { CURRENT_JOB_PARSER_VERSION } from "@/lib/jobParserVersion";
 import { formatDeadlineLong } from "@/lib/deadline";
-import { JOB_CATEGORY_CONFIG, withJobCategories } from "@/lib/jobCategories";
+import {
+  JOB_CATEGORY_CONFIG,
+  JOB_CATEGORY_LIST,
+  getPrimaryJobCategory,
+  normalizeJobCategories,
+  withManualJobCategories,
+} from "@/lib/jobCategories";
 import { useToast } from "@/components/Toast";
 import GaugeChart from "./GaugeChart";
 import FitAnalysis from "./FitAnalysis";
@@ -123,7 +130,7 @@ export default function JobModal({ job, onClose, onUpdate, onRequestDelete }: Jo
       const data = (await res.json()) as ParseJobResponse & { error?: string };
       if (!res.ok) throw new Error(data.error || "공고 정보 재추출에 실패했습니다.");
 
-      const refreshed: JobPosting = withJobCategories({
+      const refreshed: JobPosting = withManualJobCategories({
         ...localJob,
         companyName: data.companyName,
         jobTitle: data.jobTitle,
@@ -170,6 +177,24 @@ export default function JobModal({ job, onClose, onUpdate, onRequestDelete }: Jo
       toast(`상태가 '${status}'(으)로 변경되었습니다.`, "success");
     },
     [localJob, onUpdate, toast]
+  );
+
+  const handleCategoryToggle = useCallback(
+    (category: JobCategory) => {
+      const nextCategories = localJob.jobCategories?.includes(category)
+        ? localJob.jobCategories.filter((item) => item !== category)
+        : [...(localJob.jobCategories ?? []), category];
+      const normalizedCategories = normalizeJobCategories(nextCategories);
+      const updated = {
+        ...localJob,
+        jobCategories: normalizedCategories,
+        primaryCategory: getPrimaryJobCategory(normalizedCategories),
+        categorySource: "manual" as const,
+      };
+      setLocalJob(updated);
+      onUpdate(updated);
+    },
+    [localJob, onUpdate]
   );
 
   const handleMemoChange = useCallback(
@@ -277,6 +302,30 @@ export default function JobModal({ job, onClose, onUpdate, onRequestDelete }: Jo
             >
               <X className="w-5 h-5" />
             </button>
+          </div>
+        </div>
+
+        {/* 직무 카테고리 선택 */}
+        <div className="px-5 sm:px-6 py-3 border-b border-gray-50">
+          <p className="text-xs text-gray-400 mb-2">직무 카테고리</p>
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+            {JOB_CATEGORY_LIST.map((category) => {
+              const cfg = JOB_CATEGORY_CONFIG[category];
+              const isActive = jobCategories.includes(category);
+              return (
+                <button
+                  key={category}
+                  onClick={() => handleCategoryToggle(category)}
+                  className={`text-xs font-bold px-3 py-2 rounded-xl border transition-all ${
+                    isActive
+                      ? `${cfg.active} ring-1`
+                      : "border-gray-100 bg-gray-50 text-gray-400 hover:border-blue-200 hover:bg-white hover:text-blue-500"
+                  }`}
+                >
+                  {category}
+                </button>
+              );
+            })}
           </div>
         </div>
 

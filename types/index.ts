@@ -8,7 +8,6 @@ export type JobStatus =
 
 export type JobCategory = "Data" | "Sensor" | "Vision" | "Robot";
 export type JobPrimaryCategory = JobCategory | "Unclassified";
-export type JobCategoryScores = Record<JobCategory, number>;
 
 export interface JobPosting {
   id: string;
@@ -31,7 +30,7 @@ export interface JobPosting {
   lastParseError?: string;
   jobCategories?: JobCategory[];
   primaryCategory?: JobPrimaryCategory;
-  categoryScores?: JobCategoryScores;
+  categorySource?: "manual";
   salary?: string;
   employmentType?: string;
   experienceLevel?: "신입" | "경력" | "신입/경력" | "경력무관" | "미확인";
