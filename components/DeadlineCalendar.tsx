@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { CalendarDays, ChevronLeft, ChevronRight } from "lucide-react";
+import { CalendarDays, CheckCircle2, ChevronLeft, ChevronRight } from "lucide-react";
 import { JobPosting } from "@/types";
 import { parseDeadlineDate } from "@/lib/deadline";
 
@@ -121,11 +121,18 @@ export default function DeadlineCalendar({ jobs, onSelectJob }: DeadlineCalendar
                     <button
                       key={job.id}
                       onClick={() => onSelectJob(job)}
-                      className="block w-full truncate rounded-md bg-blue-50 px-1.5 py-1 text-left text-[11px] font-medium text-blue-700 hover:bg-blue-100"
-                      title={`${job.deadlineTime ? `${job.deadlineTime} ` : ""}${job.companyName} - ${job.jobTitle}`}
+                      className="flex w-full items-center gap-1 rounded-md bg-blue-50 px-1.5 py-1 text-left text-[11px] font-medium text-blue-700 hover:bg-blue-100"
+                      title={`${job.status === "서류 제출" ? "[서류 제출] " : ""}${
+                        job.deadlineTime ? `${job.deadlineTime} ` : ""
+                      }${job.companyName} - ${job.jobTitle}`}
                     >
-                      {job.deadlineTime ? `${job.deadlineTime} ` : ""}
-                      {job.companyName} - {job.jobTitle}
+                      {job.status === "서류 제출" && (
+                        <CheckCircle2 className="h-3 w-3 shrink-0 text-emerald-500" />
+                      )}
+                      <span className="min-w-0 truncate">
+                        {job.deadlineTime ? `${job.deadlineTime} ` : ""}
+                        {job.companyName} - {job.jobTitle}
+                      </span>
                     </button>
                   ))}
                   {dayJobs.length > 3 && (

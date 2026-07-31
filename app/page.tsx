@@ -42,11 +42,11 @@ const CANONICAL_SITE_ORIGIN =
 const CANONICAL_SITE_HOST = new URL(CANONICAL_SITE_ORIGIN).host;
 
 type StatusFilterTab = Exclude<JobStatus, "관심">;
-type FilterTab = "전체" | "즐겨찾기" | StatusFilterTab;
+type FilterTab = "전체" | "즐겨찾기" | "마감됨" | StatusFilterTab;
 const STATUS_FILTER_TABS = STATUS_LIST.filter(
   (status): status is StatusFilterTab => status !== "관심"
 );
-const FILTER_TABS: FilterTab[] = ["전체", "즐겨찾기", ...STATUS_FILTER_TABS];
+const FILTER_TABS: FilterTab[] = ["전체", "즐겨찾기", "마감됨", ...STATUS_FILTER_TABS];
 type CategoryFilterTab = "전체" | JobCategory;
 const CATEGORY_FILTER_TABS: CategoryFilterTab[] = ["전체", ...JOB_CATEGORY_LIST];
 type SortMode = "deadline" | "fitScore";
@@ -343,6 +343,8 @@ export default function DashboardPage() {
       ? jobs
       : activeFilter === "즐겨찾기"
       ? jobs.filter((j) => j.isFavorite)
+      : activeFilter === "마감됨"
+      ? jobs.filter((j) => isDeadlineExpired(j.deadline, j.deadlineTime, now))
       : jobs.filter((j) => j.status === activeFilter);
 
   const filteredJobs =
@@ -371,6 +373,8 @@ export default function DashboardPage() {
       ? `${activeCategory} 직무 필터에 맞는 공고가 없습니다.`
       : activeFilter === "즐겨찾기"
       ? "즐겨찾기한 공고가 없습니다."
+      : activeFilter === "마감됨"
+      ? "마감된 공고가 없습니다."
       : `'${activeFilter}' 상태의 공고가 없습니다.`;
 
   // 각 상태별 카운트 (필터 탭 숫자 배지용)
@@ -472,9 +476,13 @@ export default function DashboardPage() {
                 ? jobs.length
                 : tab === "즐겨찾기"
                 ? favoriteJobCount
+                : tab === "마감됨"
+                ? expiredJobCount
                 : countByStatus[tab] ?? 0;
             const cfg =
-              tab !== "전체" && tab !== "즐겨찾기" ? STATUS_CONFIG[tab] : null;
+              tab !== "전체" && tab !== "즐겨찾기" && tab !== "마감됨"
+                ? STATUS_CONFIG[tab]
+                : null;
 
             return (
               <button
@@ -486,6 +494,8 @@ export default function DashboardPage() {
                     isActive
                       ? tab === "즐겨찾기"
                         ? "bg-amber-50 text-amber-600 border-amber-100 ring-1 ring-amber-200"
+                        : tab === "마감됨"
+                        ? "bg-gray-100 text-gray-600 border-gray-200 ring-1 ring-gray-200"
                         : cfg
                         ? `${cfg.bg} ${cfg.text} border-transparent ring-1 ${cfg.ring}`
                         : "bg-blue-500 text-white border-transparent"
@@ -623,8 +633,18 @@ export default function DashboardPage() {
         {/* 마감된 공고 */}
         {viewMode === "list" && expiredJobs.length > 0 && (
           <section className="space-y-3">
-            <h2 className="text-sm font-semibold text-gray-400">마감된 공고</h2>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 opacity-60">
+            <h2
+              className={`text-sm font-semibold ${
+                activeFilter === "마감됨" ? "text-gray-700" : "text-gray-400"
+              }`}
+            >
+              마감된 공고
+            </h2>
+            <div
+              className={`grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 ${
+                activeFilter === "마감됨" ? "" : "opacity-60"
+              }`}
+            >
               {expiredJobs.map((job) => (
                 <div key={job.id} className="relative group">
                   <JobCard
@@ -653,7 +673,10 @@ export default function DashboardPage() {
               {emptyFilterMessage}
             </p>
             <button
-              onClick={() => setActiveFilter("전체")}
+              onClick={() => {
+                setActiveFilter("전체");
+                setActiveCategory("전체");
+              }}
               className="text-xs text-blue-500 underline underline-offset-2"
             >
               전체 보기
