@@ -33,6 +33,12 @@ yarn-error.log*
 # env files (can opt-in for committing if needed)
 .env*
 
+# local secrets / private setup notes
+Supabase*.txt
+*비밀번호*.txt
+*.secret.*
+secrets/
+
 # vercel
 .vercel
 

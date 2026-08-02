@@ -1,144 +1,120 @@
 # Fit Check
 
-취업 준비 중 여러 채용 공고를 탭으로 띄워두지 않고, 한곳에 저장해 마감일과 지원 상태를 관리하는 개인용 취업 매니저입니다.
+채용 공고 URL을 한곳에 저장하고, 마감일과 지원 상태를 놓치지 않게 관리하는 개인용 취업 매니저입니다.
 
-공고 URL을 넣거나 공고 내용을 붙여넣으면 AI가 회사명, 직무, 마감일, 근무지, 요구 스펙을 추출하고, 내 이력서와 비교해 적합도를 보여주는 것을 목표로 합니다.
+공고를 등록하면 회사명, 직무명, 마감일, 근무지, 급여, 근무형태, 경력구분, 주요업무, 자격요건, 우대사항, 채용전형을 정리하고, 내 이력서 기준의 적합도 분석 결과를 저장합니다.
 
-## 해결하려는 문제
+## 현재 상태
 
-- 하루에 여러 공고를 보다 보면 브라우저 탭이 너무 많이 쌓입니다.
-- 관심은 있지만 바로 지원할지 애매한 공고를 따로 정리하기 어렵습니다.
-- 마감일을 놓치기 쉽습니다.
-- 내 이력서와 공고 요구사항이 얼마나 맞는지 빠르게 판단하기 어렵습니다.
+- URL 기반 공고 등록
+- 등록 시 수동 직무 카테고리 선택
+  - `Data`
+  - `Sensor`
+  - `Vision`
+  - `Robot`
+- 사람인, 원티드, 잡코리아, 잡플래닛 등 채용 공고 URL 파싱
+- 사람인 공고는 공식 API와 페이지 정보를 함께 활용
+- 회사명, 직무명, 마감일, 마감시간, 근무지 추출
+- 급여, 근무형태, 경력구분 추출
+- 주요업무, 자격요건, 우대사항, 채용전형 표시
+- 상시채용 공고 별도 표시
+- 이력서 기반 적합도 점수와 유리한 조건/보완 조건 분석
+- 분석된 적합도 점수 저장
+- 마감임박순, 타겟 적합도순 정렬
+- 전체, 즐겨찾기, 마감됨, 지원 상태별 필터
+- `Data / Sensor / Vision / Robot` 직무 카테고리 필터
+- 마감 달력 보기
+- 서류 제출 공고는 달력에서 체크 표시
+- 공고별 메모 작성
+- 즐겨찾기
+- 삭제 전 확인 모달
+- 상세 모달에서 원본 공고, 잡플래닛, 좋소판별기 링크 연결
+- 네이버 지도 기반 통근 정보와 지도 표시
+- Supabase 저장, 미설정 시 localStorage fallback
+- Vercel 배포
 
-Fit Check는 이 흐름을 `공고 저장 -> D-day 확인 -> 적합도 분석 -> 지원 상태 관리`로 단순하게 만드는 것을 목표로 합니다.
+## 사용 흐름
 
-## 현재 구현된 기능
+1. `공고 추가`를 누릅니다.
+2. `Data / Sensor / Vision / Robot` 중 해당 직무 카테고리를 직접 선택합니다.
+3. 채용 공고 URL을 붙여넣고 등록합니다.
+4. 공고 정보가 저장되고 적합도 분석이 시작됩니다.
+5. 목록, 필터, 정렬, 달력에서 공고를 관리합니다.
+6. 지원하면 상태를 `서류 제출`로 바꿔 달력과 목록에서 확인합니다.
 
-- 공고 텍스트 붙여넣기
-- 공고 URL 입력
-- AI 기반 공고 정보 추출
-- 공고 카드 목록
-- 지원 마감 D-day 표시
-- 마감된 공고 분리
-- 지원 상태 필터
-  - 관심
-  - 서류 제출
-  - 면접 진행
-  - 결과 대기
-  - 합격
-  - 불합격
-- 상세 모달에서 공고 정보 확인
-- 이력서 기반 적합도 점수 및 장단점 분석
-- 통근 시간 더미 정보 표시
-- localStorage 기반 로컬 저장
+## 데이터 모델
 
-## 앞으로 추가하고 싶은 기능
+공고 하나는 대략 아래 정보를 가집니다.
 
-- 이미지 업로드 후 공고 내용 추출
-- OCR 또는 비전 모델을 이용한 캡처 이미지 분석
-- 공고 원본 URL 저장
-- 개인 메모
-- 우선순위 또는 즐겨찾기
-- 마감 임박순 정렬
-- 마감 임박 알림
-- 이력서 설정 화면
-- DB 저장
-- 로그인 기반 계정별 저장
-- 브라우저 확장 프로그램 또는 북마클릿으로 현재 보고 있는 공고 저장
-
-## 개발 순서
-
-일반적으로 개발자는 모든 기능을 한 번에 만들기보다, 가장 중요한 흐름을 작게 완성한 뒤 점진적으로 확장합니다.
-
-이 프로젝트에서는 다음 순서로 진행합니다.
-
-1. 문제 정의
-   - 공고 탭을 여러 개 띄워두는 대신 공고를 저장하고 관리할 수 있게 합니다.
-
-2. MVP 범위 정하기
-   - 텍스트 또는 URL로 공고를 등록합니다.
-   - 회사명, 직무, 마감일, 요구 스펙을 추출합니다.
-   - 공고 목록과 D-day를 보여줍니다.
-   - 지원 상태를 변경할 수 있게 합니다.
-
-3. 데이터 모델 정리
-   - 공고 하나가 어떤 정보를 가져야 하는지 정합니다.
-   - 예: 회사명, 직무명, 마감일, URL, 상태, 요구 스펙, 메모, 적합도 점수
-
-4. 핵심 흐름 완성
-   - 공고 입력
-   - AI 파싱
-   - 저장
-   - 목록 표시
-   - 상세 보기
-
-5. 저장 방식 개선
-   - 처음에는 localStorage로 빠르게 검증합니다.
-   - 실제로 오래 사용할 단계가 되면 DB로 이전합니다.
-
-6. 입력 방식 확장
-   - 텍스트 붙여넣기
-   - URL 입력
-   - 이미지 업로드
-   - 브라우저 확장 프로그램
-
-7. 사용성 개선
-   - 정렬, 검색, 필터, 메모, 우선순위 같은 실제 사용 중 필요한 기능을 추가합니다.
-
-8. 알림 추가
-   - 앱 안에서 마감 임박 공고를 강조합니다.
-   - 이후 브라우저 알림, 이메일, 캘린더 연동 등을 검토합니다.
-
-9. 배포와 보안 정리
-   - API 키를 안전하게 관리합니다.
-   - 이력서 정보와 개인정보를 코드에서 분리합니다.
-   - 배포 환경의 권한과 환경변수를 정리합니다.
-
-## 기록 방식
-
-개발 중 떠오르는 내용은 종류별로 나누어 기록합니다.
-
-- `README.md`
-  - 프로젝트 소개, 목적, 주요 기능, 실행 방법, 개발 방향을 기록합니다.
-
-- `TODO.md`
-  - 바로 해야 할 작업을 체크리스트로 기록합니다.
-
-- `docs/product-plan.md`
-  - 왜 이 앱을 만드는지, 어떤 문제를 해결하는지, 사용자가 어떤 흐름으로 쓸지 기록합니다.
-
-- `docs/development-roadmap.md`
-  - 개발 순서, 기능 우선순위, 단계별 목표를 기록합니다.
-
-- `docs/data-model.md`
-  - 공고, 이력서, 분석 결과 같은 데이터 구조를 기록합니다.
-
-현재는 README에 핵심 방향을 먼저 정리하고, 프로젝트가 커지면 `docs/` 폴더로 세부 문서를 분리합니다.
-
-## 추천 다음 작업
-
-가장 자연스러운 다음 순서는 데이터 모델 정리입니다.
-
-우선 `JobPosting` 타입에 앞으로 필요한 필드를 추가할 준비를 합니다.
-
-- `sourceUrl`: 공고 원본 URL
+- `companyName`: 회사명
+- `jobTitle`: 직무명
+- `deadline`: 마감일, 상시채용 또는 `null`
+- `deadlineTime`: 마감시간
+- `workplaceAddress`: 근무지
+- `jobCategories`: 사용자가 직접 고른 직무 카테고리
+- `primaryCategory`: 대표 직무 카테고리
+- `categorySource`: 수동 선택 여부
+- `salary`: 급여/연봉
+- `employmentType`: 근무형태/고용형태
+- `experienceLevel`: 신입/경력 구분
+- `mainTasks`: 주요업무
+- `qualifications`: 자격요건
+- `preferredQualifications`: 우대사항
+- `hiringProcess`: 채용전형
+- `fitScore`: 이력서 적합도 점수
+- `fitAnalysis`: 유리한 조건, 보완 조건, 요약
 - `memo`: 개인 메모
-- `priority`: 우선순위
-- `appliedAt`: 지원일
-- `reminderAt`: 알림 예정일
-- `sourceType`: text, url, image
+- `isFavorite`: 즐겨찾기 여부
+- `status`: 지원 상태
+- `sourceUrl`: 원본 공고 URL
+- `commuteTime`: 통근 정보
 
-그다음 이미지 업로드/OCR 기능을 붙이면, 처음 기획한 “URL 또는 사진으로 공고 저장” 흐름에 가까워집니다.
+## 적합도 분석 기준
 
-## 기술 스택
+적합도 분석은 `data/resume.ts`의 이력서 내용과 `data/careerFitCriteria.ts`의 커리어 타겟 기준을 함께 사용합니다.
 
-- Framework: Next.js 16 App Router
-- Language: TypeScript
-- UI: React, Tailwind CSS
-- Icons: lucide-react
-- AI: Anthropic Claude
-- Storage: localStorage
+중점적으로 보는 방향은 다음과 같습니다.
+
+- 센서 데이터 분석
+- 머신비전/비전 검사 SW
+- 로봇 SW 테스트/검증
+- 제조/장비 데이터 분석
+- AI 모델/데이터 검증
+
+`ANTHROPIC_API_KEY`가 있으면 AI 분석을 사용하고, 실패하거나 키가 없으면 기본 키워드 기반 fallback 분석을 사용합니다.
+
+## 저장 방식
+
+- Supabase 환경변수가 있으면 Supabase `jobs` 테이블에 저장합니다.
+- Supabase가 설정되지 않은 환경에서는 브라우저 `localStorage`에 저장합니다.
+- 공고 데이터는 `jobs.data` JSON 필드에 저장되는 구조입니다.
+
+## 환경변수
+
+`.env.example`을 복사해서 `.env.local`을 만들고 값을 채웁니다.
+
+```bash
+cp .env.example .env.local
+```
+
+주요 환경변수:
+
+```env
+ANTHROPIC_API_KEY=
+SARAMIN_ACCESS_KEY=
+NEXT_PUBLIC_SUPABASE_URL=
+NEXT_PUBLIC_SUPABASE_ANON_KEY=
+NEXT_PUBLIC_SITE_URL=https://hhoing-fit-check.vercel.app
+NEXT_PUBLIC_HOME_ADDRESS=
+NAVER_MAP_CLIENT_ID=
+NAVER_MAP_CLIENT_SECRET=
+```
+
+## 보안 주의
+
+비밀번호, API 키, Supabase 접속 정보, 개인 메모 파일은 Git에 올리지 않습니다.
+
+이미 GitHub에 올라간 비밀값은 파일을 삭제해도 Git 히스토리에 남을 수 있습니다. 노출된 값은 반드시 Supabase/Vercel/Naver Cloud 등 원본 서비스에서 재발급하거나 비밀번호를 변경해야 합니다.
 
 ## 실행 방법
 
@@ -147,48 +123,64 @@ npm install
 npm run dev
 ```
 
-브라우저에서 아래 주소로 접속합니다.
+브라우저에서 접속합니다.
 
 ```txt
 http://localhost:3000
 ```
 
-## 환경변수
+검증 명령:
 
-`.env.local`에 필요한 값을 설정합니다.
-
-```env
-ANTHROPIC_API_KEY=your_api_key
-NEXT_PUBLIC_HOME_ADDRESS=출발지 주소
+```bash
+npm run lint
+npm run build
 ```
-
-`ANTHROPIC_API_KEY`가 없으면 더미 데이터로 동작하도록 구성되어 있습니다.
 
 ## 프로젝트 구조
 
 ```txt
 app/
   api/
-    parse-job/
-      route.ts
     analyze-fit/
-      route.ts
+    commute/
+    parse-job/
   page.tsx
-  layout.tsx
 components/
-  JobInput.tsx
-  JobCard.tsx
-  JobModal.tsx
+  CommuteInfo.tsx
+  DeadlineCalendar.tsx
   FitAnalysis.tsx
   GaugeChart.tsx
-  CommuteInfo.tsx
+  JobCard.tsx
+  JobInput.tsx
+  JobModal.tsx
+  RouteMap.tsx
   Toast.tsx
+data/
+  careerFitCriteria.ts
+  resume.ts
 hooks/
   useJobs.ts
 lib/
   constants.ts
-data/
-  resume.ts
+  deadline.ts
+  jobCategories.ts
+  jobParserVersion.ts
+  supabaseClient.ts
 types/
   index.ts
+docs/
+  product-plan.md
+  development-roadmap.md
+  data-model.md
+  ideas.md
 ```
+
+## 앞으로 개선할 일
+
+- OCR 기반 공고 이미지 등록
+- 마감 임박 알림
+- 공고 검색
+- 전체 공고 재파싱/재분석 버튼
+- 지원일, 제출 서류, 자소서 버전 관리
+- 계정별 로그인과 RLS 정책 강화
+- 공고별 캘린더 외부 연동
