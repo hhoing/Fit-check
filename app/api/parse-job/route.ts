@@ -404,6 +404,59 @@ async function fetchSaraminOfficialFields(recIdx: string): Promise<ParsedJobFiel
   return firstJob ? parseSaraminApiJob(firstJob) : {};
 }
 
+function hasUsefulMetadata(metadata: ParsedJobFields): boolean {
+  return Boolean(
+    hasUsefulString(metadata.companyName) ||
+      hasUsefulString(metadata.jobTitle) ||
+      hasUsefulString(metadata.deadline ?? undefined) ||
+      hasUsefulString(metadata.workplaceAddress) ||
+      hasUsefulString(metadata.description) ||
+      (metadata.mainTasks && metadata.mainTasks.length > 0) ||
+      (metadata.qualifications && metadata.qualifications.length > 0) ||
+      (metadata.positionDetails && metadata.positionDetails.length > 0)
+  );
+}
+
+function buildTextFromMetadata(metadata: ParsedJobFields): string {
+  const positionDetailsText = (metadata.positionDetails ?? [])
+    .map((detail) =>
+      [
+        `모집분야: ${detail.title}`,
+        detail.headcount ? `모집인원: ${detail.headcount}` : "",
+        detail.mainTasks.length > 0 ? `주요업무: ${detail.mainTasks.join(" / ")}` : "",
+        detail.qualifications.length > 0 ? `자격요건: ${detail.qualifications.join(" / ")}` : "",
+        (detail.preferredQualifications ?? []).length > 0
+          ? `우대사항: ${(detail.preferredQualifications ?? []).join(" / ")}`
+          : "",
+      ]
+        .filter(Boolean)
+        .join("\n")
+    )
+    .join("\n\n");
+
+  return [
+    metadata.companyName ? `회사명: ${metadata.companyName}` : "",
+    metadata.jobTitle ? `직무: ${metadata.jobTitle}` : "",
+    metadata.deadline ? `마감일: ${metadata.deadline}` : "",
+    metadata.deadlineTime ? `마감시간: ${metadata.deadlineTime}` : "",
+    metadata.workplaceAddress ? `근무지: ${metadata.workplaceAddress}` : "",
+    metadata.salary ? `급여: ${metadata.salary}` : "",
+    metadata.employmentType ? `근무형태: ${metadata.employmentType}` : "",
+    metadata.experienceLevel ? `경력구분: ${metadata.experienceLevel}` : "",
+    metadata.description,
+    positionDetailsText,
+    metadata.mainTasks?.length ? `주요업무:\n${metadata.mainTasks.join("\n")}` : "",
+    metadata.qualifications?.length ? `자격요건:\n${metadata.qualifications.join("\n")}` : "",
+    metadata.preferredQualifications?.length
+      ? `우대사항:\n${metadata.preferredQualifications.join("\n")}`
+      : "",
+    metadata.hiringProcess?.length ? `채용전형:\n${metadata.hiringProcess.join("\n")}` : "",
+  ]
+    .filter(Boolean)
+    .join("\n\n")
+    .trim();
+}
+
 function hasUsefulString(value: string | undefined): value is string {
   return Boolean(value && value.trim() && value.trim() !== "미확인");
 }
@@ -596,18 +649,47 @@ async function fetchJobTextFromUrl(url: string): Promise<{
   text: string;
   metadata: ParsedJobFields;
 }> {
-  let html = await fetchHtml(url);
   const saraminMobileUrl = getSaraminMobileUrl(url);
   const saraminJobId = getSaraminJobIdFromUrl(url);
+  const isSaramin = isSaraminUrl(url);
   const supplementalTexts: string[] = [];
   const supplementalMetadata: ParsedJobFields = {};
+  let apiMetadata: ParsedJobFields = {};
 
-  if (saraminMobileUrl) {
+  if (saraminJobId && isSaramin) {
     try {
-      html = await fetchHtml(saraminMobileUrl);
-    } catch {
-      // 모바일 상세 페이지를 못 가져오면 원래 URL HTML로 파싱을 계속 시도
+      apiMetadata = await fetchSaraminOfficialFields(saraminJobId);
+    } catch (error) {
+      console.warn(
+        "Saramin API fallback:",
+        error instanceof Error ? error.message : "unknown error"
+      );
     }
+  }
+
+  const candidateUrls = saraminMobileUrl ? [saraminMobileUrl, url] : [url];
+  let html = "";
+  let fetchedUrl = "";
+  let fetchError: unknown;
+
+  for (const candidateUrl of candidateUrls) {
+    try {
+      html = await fetchHtml(candidateUrl);
+      fetchedUrl = candidateUrl;
+      break;
+    } catch (error) {
+      fetchError = error;
+    }
+  }
+
+  if (!html) {
+    if (hasUsefulMetadata(apiMetadata)) {
+      return {
+        text: buildTextFromMetadata(apiMetadata),
+        metadata: apiMetadata,
+      };
+    }
+    throw fetchError instanceof Error ? fetchError : new Error("URL 본문을 불러오지 못했습니다.");
   }
 
   if (!saraminMobileUrl && isJobKoreaUrl(url)) {
@@ -631,8 +713,9 @@ async function fetchJobTextFromUrl(url: string): Promise<{
     }
   }
 
-  const genericText = saraminMobileUrl ? "" : extractGenericJobTextFromHtml(html);
-  const text = saraminMobileUrl
+  const isSaraminMobileHtml = Boolean(saraminMobileUrl && fetchedUrl === saraminMobileUrl);
+  const genericText = isSaraminMobileHtml ? "" : extractGenericJobTextFromHtml(html);
+  const text = isSaraminMobileHtml
     ? extractSaraminTextFromHtml(html)
     : [
         ...(isJobKoreaUrl(url) ? supplementalTexts : []),
@@ -647,21 +730,9 @@ async function fetchJobTextFromUrl(url: string): Promise<{
     ...htmlMetadata,
     ...compactParsedFields(supplementalMetadata),
   };
-  let apiMetadata: ParsedJobFields = {};
-
-  if (saraminJobId && isSaraminUrl(url)) {
-    try {
-      apiMetadata = await fetchSaraminOfficialFields(saraminJobId);
-    } catch (error) {
-      console.warn(
-        "Saramin API fallback:",
-        error instanceof Error ? error.message : "unknown error"
-      );
-    }
-  }
 
   return {
-    text,
+    text: text || buildTextFromMetadata(apiMetadata),
     metadata: mergeSaraminMetadata(combinedHtmlMetadata, apiMetadata),
   };
 }
