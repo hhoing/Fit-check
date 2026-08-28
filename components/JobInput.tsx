@@ -2,15 +2,29 @@
 
 import { useState } from "react";
 import { AlertCircle, Link, Loader2, Plus, X } from "lucide-react";
-import { JobCategory, ParseJobResponse } from "@/types";
+import type { JobCategory, JobPosting, ParseJobResponse } from "@/types";
 import { JOB_CATEGORY_CONFIG, JOB_CATEGORY_LIST } from "@/lib/jobCategories";
 import { useToast } from "@/components/Toast";
 
+type ParsedJobResult =
+  | { status: "added" }
+  | { status: "duplicate"; job: JobPosting };
+
 interface JobInputProps {
-  onParsed: (data: ParseJobResponse, rawText: string, jobCategories: JobCategory[]) => void;
+  onParsed: (
+    data: ParseJobResponse,
+    rawText: string,
+    jobCategories: JobCategory[]
+  ) => ParsedJobResult;
+  onFindDuplicate: (url: string) => JobPosting | null;
+  onSelectDuplicate: (job: JobPosting) => void;
 }
 
-export default function JobInput({ onParsed }: JobInputProps) {
+export default function JobInput({
+  onParsed,
+  onFindDuplicate,
+  onSelectDuplicate,
+}: JobInputProps) {
   const [input, setInput] = useState("");
   const [selectedCategories, setSelectedCategories] = useState<JobCategory[]>([]);
   const [loading, setLoading] = useState(false);
@@ -26,11 +40,24 @@ export default function JobInput({ onParsed }: JobInputProps) {
     setError(null);
   };
 
+  const showDuplicateJob = (job: JobPosting) => {
+    const message = `이미 등록된 공고입니다.\n${job.companyName} - ${job.jobTitle}`;
+    setError(`${message}\n\n기존 공고를 열어뒀어요.`);
+    toast(message, "info");
+    onSelectDuplicate(job);
+  };
+
   const handleSubmit = async () => {
     const trimmed = input.trim();
     if (!trimmed) return;
     if (selectedCategories.length === 0) {
       setError("직무 카테고리를 하나 이상 선택해주세요.");
+      return;
+    }
+
+    const duplicateBeforeParse = onFindDuplicate(trimmed);
+    if (duplicateBeforeParse) {
+      showDuplicateJob(duplicateBeforeParse);
       return;
     }
 
@@ -51,7 +78,12 @@ export default function JobInput({ onParsed }: JobInputProps) {
       }
 
       const data: ParseJobResponse = await res.json();
-      onParsed(data, data.rawText ?? `URL: ${trimmed}`, selectedCategories);
+      const result = onParsed(data, data.rawText ?? `URL: ${trimmed}`, selectedCategories);
+      if (result.status === "duplicate") {
+        showDuplicateJob(result.job);
+        return;
+      }
+
       setInput("");
       setSelectedCategories([]);
       setError(null);

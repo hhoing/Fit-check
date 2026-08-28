@@ -22,6 +22,7 @@ import {
 } from "@/types";
 import { STATUS_LIST, STATUS_CONFIG } from "@/lib/constants";
 import { getDeadlineSortTime, isDeadlineExpired } from "@/lib/deadline";
+import { findDuplicateJob } from "@/lib/jobIdentity";
 import { CURRENT_JOB_PARSER_VERSION } from "@/lib/jobParserVersion";
 import {
   JOB_CATEGORY_CONFIG,
@@ -51,6 +52,9 @@ type CategoryFilterTab = "전체" | JobCategory;
 const CATEGORY_FILTER_TABS: CategoryFilterTab[] = ["전체", ...JOB_CATEGORY_LIST];
 type SortMode = "deadline" | "fitScore";
 type ViewMode = "list" | "calendar";
+type ParsedJobResult =
+  | { status: "added" }
+  | { status: "duplicate"; job: JobPosting };
 
 type RefreshPayload = { url: string } | { text: string };
 
@@ -171,8 +175,38 @@ export default function DashboardPage() {
     [updateJob]
   );
 
+  const revealExistingJob = useCallback(
+    (job: JobPosting) => {
+      const latest = jobs.find((j) => j.id === job.id) ?? job;
+      setSelectedJob(latest);
+      setShowInput(false);
+    },
+    [jobs]
+  );
+
+  const findDuplicateByUrl = useCallback(
+    (sourceUrl: string) => findDuplicateJob(jobs, { sourceUrl }),
+    [jobs]
+  );
+
   const handleParsed = useCallback(
-    (data: ParseJobResponse, rawText: string, selectedCategories: JobCategory[]) => {
+    (
+      data: ParseJobResponse,
+      rawText: string,
+      selectedCategories: JobCategory[]
+    ): ParsedJobResult => {
+      const duplicateJob = findDuplicateJob(jobs, {
+        sourceUrl: data.sourceUrl,
+        rawText: data.rawText ?? rawText,
+        companyName: data.companyName,
+        jobTitle: data.jobTitle,
+        deadline: data.deadline,
+      });
+
+      if (duplicateJob) {
+        return { status: "duplicate", job: duplicateJob };
+      }
+
       const jobCategories = normalizeJobCategories(selectedCategories);
       const newJob: JobPosting = {
         id: `job-${Date.now()}`,
@@ -207,8 +241,9 @@ export default function DashboardPage() {
       setShowInput(false);
       setSelectedJob(newJob);
       void analyzeAndStoreJob(newJob);
+      return { status: "added" };
     },
-    [addJob, analyzeAndStoreJob]
+    [addJob, analyzeAndStoreJob, jobs]
   );
 
   useEffect(() => {
@@ -438,7 +473,11 @@ export default function DashboardPage() {
         {/* 공고 입력 패널 */}
         {showInput && (
           <div className="animate-in slide-in-from-top-2 duration-200">
-            <JobInput onParsed={handleParsed} />
+            <JobInput
+              onParsed={handleParsed}
+              onFindDuplicate={findDuplicateByUrl}
+              onSelectDuplicate={revealExistingJob}
+            />
           </div>
         )}
 
