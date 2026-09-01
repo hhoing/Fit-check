@@ -24,9 +24,6 @@ type NaverMapsNamespace = {
     once: (target: unknown, eventName: string, listener: () => void) => unknown;
     trigger?: (target: unknown, eventName: string) => unknown;
   };
-  PointingIcon?: {
-    OPEN_ARROW?: string;
-  };
 };
 
 declare global {
@@ -181,7 +178,6 @@ export default function RouteMap({
           strokeColor: "#059669",
           strokeOpacity: 0.9,
           strokeWeight: 6,
-          endIcon: maps.PointingIcon?.OPEN_ARROW,
         });
         new maps.Marker({
           map,
