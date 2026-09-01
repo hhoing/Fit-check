@@ -1,12 +1,10 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import Image from "next/image";
 import { AlertTriangle } from "lucide-react";
 import { MapPoint } from "@/types";
 
 interface RouteMapProps {
-  staticMapUrl?: string;
   clientId?: string;
   originPoint?: MapPoint;
   destinationPoint?: MapPoint;
@@ -14,17 +12,12 @@ interface RouteMapProps {
 }
 
 type NaverMapInstance = {
-  fitBounds: (bounds: unknown, margin?: number) => void;
-};
-
-type NaverBounds = {
-  extend: (point: unknown) => void;
+  fitBounds: (bounds: unknown, options?: unknown) => void;
 };
 
 type NaverMapsNamespace = {
   Map: new (element: HTMLElement, options: Record<string, unknown>) => NaverMapInstance;
   LatLng: new (lat: number, lng: number) => unknown;
-  LatLngBounds: new () => NaverBounds;
   Marker: new (options: Record<string, unknown>) => unknown;
   Polyline: new (options: Record<string, unknown>) => unknown;
   Event?: {
@@ -111,7 +104,6 @@ function hasAuthFailureText(element: HTMLElement): boolean {
 }
 
 export default function RouteMap({
-  staticMapUrl,
   clientId,
   originPoint,
   destinationPoint,
@@ -119,7 +111,6 @@ export default function RouteMap({
 }: RouteMapProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [failedDynamicMapKey, setFailedDynamicMapKey] = useState<string | null>(null);
-  const [failedStaticMapUrl, setFailedStaticMapUrl] = useState<string | null>(null);
   const pathKey = useMemo(
     () => routePath?.map((point) => `${point.lat.toFixed(6)},${point.lng.toFixed(6)}`).join("|"),
     [routePath]
@@ -136,8 +127,7 @@ export default function RouteMap({
           pathKey ?? "",
         ].join("|")
       : null;
-  const showStaticMap = !canUseDynamicMap || failedDynamicMapKey === dynamicMapKey;
-  const staticMapError = Boolean(staticMapUrl && failedStaticMapUrl === staticMapUrl);
+  const hasDynamicMapFailure = canUseDynamicMap && failedDynamicMapKey === dynamicMapKey;
 
   useEffect(() => {
     if (!canUseDynamicMap || !clientId || !originPoint || !destinationPoint) {
@@ -179,12 +169,11 @@ export default function RouteMap({
           scaleControl: false,
           mapDataControl: false,
         });
-        const bounds = new maps.LatLngBounds();
         const linePath = displayPath.map((point) => toLatLng(maps, point));
-
-        bounds.extend(toLatLng(maps, originPoint));
-        bounds.extend(toLatLng(maps, destinationPoint));
-        linePath.forEach((point) => bounds.extend(point));
+        const fitBoundsTarget = linePath.length > 1 ? linePath : [
+          toLatLng(maps, originPoint),
+          toLatLng(maps, destinationPoint),
+        ];
 
         new maps.Polyline({
           map,
@@ -207,7 +196,13 @@ export default function RouteMap({
 
         const fitRouteBounds = () => {
           maps.Event?.trigger?.(map, "resize");
-          map.fitBounds(bounds, 24);
+          map.fitBounds(fitBoundsTarget, {
+            top: 24,
+            right: 24,
+            bottom: 24,
+            left: 24,
+            maxZoom: 15,
+          });
         };
 
         if (maps.Event?.once) {
@@ -241,26 +236,16 @@ export default function RouteMap({
     };
   }, [canUseDynamicMap, clientId, destinationPoint, dynamicMapKey, originPoint, routePath]);
 
-  if (showStaticMap || !canUseDynamicMap) {
-    if (!staticMapUrl || staticMapError) {
-      return (
-        <div className="flex min-h-48 items-start gap-2 rounded-lg border border-amber-100 bg-white px-3 py-2 text-xs text-amber-700">
-          <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
-          <p>지도 이미지를 불러오지 못했습니다. Naver Cloud 설정을 확인해 주세요.</p>
-        </div>
-      );
-    }
-
+  if (!canUseDynamicMap || hasDynamicMapFailure) {
     return (
-      <Image
-        src={staticMapUrl}
-        alt="출발지에서 근무지까지의 참고 지도"
-        width={900}
-        height={280}
-        unoptimized
-        className="h-48 w-full rounded-lg border border-slate-200 bg-white object-contain"
-        onError={() => setFailedStaticMapUrl(staticMapUrl)}
-      />
+      <div className="flex min-h-48 items-start gap-2 rounded-lg border border-amber-100 bg-white px-3 py-2 text-xs text-amber-700">
+        <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+        <p>
+          {hasDynamicMapFailure
+            ? "네이버 지도를 불러오지 못했습니다. Naver Cloud의 Dynamic Map 서비스 환경과 도메인 등록을 확인해 주세요."
+            : "지도 좌표가 부족합니다. 근무지 주소를 확인한 뒤 다시 계산해 주세요."}
+        </p>
+      </div>
     );
   }
 

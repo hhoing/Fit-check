@@ -1,6 +1,6 @@
 import type { JobCategory, JobPrimaryCategory, JobPosting } from "@/types";
 
-export const JOB_CATEGORY_LIST: JobCategory[] = ["Data", "Sensor", "Vision", "Robot"];
+export const JOB_CATEGORY_LIST: JobCategory[] = ["Data", "Sensor", "Vision", "Robot", "PM"];
 
 export const JOB_CATEGORY_CONFIG: Record<
   JobCategory,
@@ -33,6 +33,13 @@ export const JOB_CATEGORY_CONFIG: Record<
     text: "text-lime-700",
     border: "border-lime-100",
     active: "border-lime-200 bg-lime-50 text-lime-700 ring-lime-200",
+  },
+  PM: {
+    label: "PM",
+    bg: "bg-rose-50",
+    text: "text-rose-700",
+    border: "border-rose-100",
+    active: "border-rose-200 bg-rose-50 text-rose-700 ring-rose-200",
   },
 };
 

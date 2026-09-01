@@ -440,7 +440,7 @@ export default function JobModal({ job, onClose, onUpdate, onRequestDelete }: Jo
         {/* 직무 카테고리 선택 */}
         <div className="px-5 sm:px-6 py-3 border-b border-gray-50">
           <p className="text-xs text-gray-400 mb-2">직무 카테고리</p>
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
             {JOB_CATEGORY_LIST.map((category) => {
               const cfg = JOB_CATEGORY_CONFIG[category];
               const isActive = jobCategories.includes(category);

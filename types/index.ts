@@ -6,7 +6,7 @@ export type JobStatus =
   | "합격"
   | "불합격";
 
-export type JobCategory = "Data" | "Sensor" | "Vision" | "Robot";
+export type JobCategory = "Data" | "Sensor" | "Vision" | "Robot" | "PM";
 export type JobPrimaryCategory = JobCategory | "Unclassified";
 
 export interface JobPosting {

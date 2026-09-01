@@ -173,7 +173,7 @@ export default function CommuteInfo({
   const destinationLabel = apiInfo?.destination ?? destination;
   const isDrivingReference = info?.method === "자동차 참고";
   const CommuteIcon = isDrivingReference ? Car : Train;
-  const canShowMap = Boolean(info?.staticMapUrl);
+  const canShowMap = Boolean(info?.mapClientId && info?.originPoint && info?.destinationPoint);
 
   return (
     <div className="bg-slate-50 rounded-xl p-4 border border-slate-100 space-y-3">
@@ -222,7 +222,6 @@ export default function CommuteInfo({
             </div>
           </div>
           <RouteMap
-            staticMapUrl={info.staticMapUrl}
             clientId={info.mapClientId}
             originPoint={info.originPoint}
             destinationPoint={info.destinationPoint}
@@ -232,7 +231,6 @@ export default function CommuteInfo({
       ) : canShowMap && info ? (
         <div className="space-y-3">
           <RouteMap
-            staticMapUrl={info.staticMapUrl}
             clientId={info.mapClientId}
             originPoint={info.originPoint}
             destinationPoint={info.destinationPoint}

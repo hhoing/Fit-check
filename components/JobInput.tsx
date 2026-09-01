@@ -112,7 +112,7 @@ export default function JobInput({
 
       <div className="space-y-2">
         <p className="text-xs font-semibold text-gray-500">직무 카테고리</p>
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
           {JOB_CATEGORY_LIST.map((category) => {
             const cfg = JOB_CATEGORY_CONFIG[category];
             const isActive = selectedCategories.includes(category);
