@@ -14,7 +14,7 @@ interface RouteMapProps {
 }
 
 type NaverMapInstance = {
-  fitBounds: (bounds: unknown) => void;
+  fitBounds: (bounds: unknown, margin?: number) => void;
 };
 
 type NaverBounds = {
@@ -27,6 +27,10 @@ type NaverMapsNamespace = {
   LatLngBounds: new () => NaverBounds;
   Marker: new (options: Record<string, unknown>) => unknown;
   Polyline: new (options: Record<string, unknown>) => unknown;
+  Event?: {
+    once: (target: unknown, eventName: string, listener: () => void) => unknown;
+    trigger?: (target: unknown, eventName: string) => unknown;
+  };
   PointingIcon?: {
     OPEN_ARROW?: string;
   };
@@ -144,10 +148,11 @@ export default function RouteMap({
     const previousAuthFailure = window.navermap_authFailure;
     const authFailureTimerIds: number[] = [];
 
-    window.navermap_authFailure = () => {
+    const handleAuthFailure = () => {
       previousAuthFailure?.();
       if (!cancelled) setFailedDynamicMapKey(dynamicMapKey);
     };
+    window.navermap_authFailure = handleAuthFailure;
 
     const initMap = async () => {
       try {
@@ -168,7 +173,11 @@ export default function RouteMap({
         const map = new maps.Map(container, {
           center: toLatLng(maps, center),
           zoom: 11,
-          zoomControl: true,
+          draggable: true,
+          scrollWheel: true,
+          zoomControl: false,
+          scaleControl: false,
+          mapDataControl: false,
         });
         const bounds = new maps.LatLngBounds();
         const linePath = displayPath.map((point) => toLatLng(maps, point));
@@ -196,7 +205,18 @@ export default function RouteMap({
           title: "근무지",
         });
 
-        map.fitBounds(bounds);
+        const fitRouteBounds = () => {
+          maps.Event?.trigger?.(map, "resize");
+          map.fitBounds(bounds, 24);
+        };
+
+        if (maps.Event?.once) {
+          maps.Event.once(map, "init", fitRouteBounds);
+        } else {
+          authFailureTimerIds.push(window.setTimeout(fitRouteBounds, 0));
+        }
+
+        authFailureTimerIds.push(window.setTimeout(fitRouteBounds, 250));
 
         authFailureTimerIds.push(
           window.setTimeout(() => {
@@ -215,8 +235,9 @@ export default function RouteMap({
     return () => {
       cancelled = true;
       authFailureTimerIds.forEach((timerId) => window.clearTimeout(timerId));
-      if (window.navermap_authFailure === previousAuthFailure) return;
-      window.navermap_authFailure = previousAuthFailure;
+      if (window.navermap_authFailure === handleAuthFailure) {
+        window.navermap_authFailure = previousAuthFailure;
+      }
     };
   }, [canUseDynamicMap, clientId, destinationPoint, dynamicMapKey, originPoint, routePath]);
 
@@ -237,7 +258,7 @@ export default function RouteMap({
         width={900}
         height={280}
         unoptimized
-        className="h-48 w-full rounded-lg border border-slate-200 bg-white object-cover"
+        className="h-48 w-full rounded-lg border border-slate-200 bg-white object-contain"
         onError={() => setFailedStaticMapUrl(staticMapUrl)}
       />
     );

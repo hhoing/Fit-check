@@ -17,6 +17,7 @@ import RouteMap from "./RouteMap";
 interface CommuteInfoProps {
   destination: string;
   commuteInfo?: CommuteInfoType;
+  onResolved?: (commuteInfo: CommuteInfoType) => void;
 }
 
 type CommuteApiResponse = CommuteInfoType & {
@@ -42,10 +43,6 @@ function formatDistance(distance?: number): string | null {
   return `${distance}m`;
 }
 
-function toTransitAdjustedDuration(duration: number): number {
-  return Math.max(1, Math.round(duration * 2.3));
-}
-
 function formatDuration(duration: number): string {
   if (duration < 60) return `${duration}분`;
 
@@ -54,7 +51,33 @@ function formatDuration(duration: number): string {
   return minutes > 0 ? `${hours}시간 ${minutes}분` : `${hours}시간`;
 }
 
-export default function CommuteInfo({ destination, commuteInfo }: CommuteInfoProps) {
+function hasUsableRoutePath(commuteInfo?: CommuteInfoType): boolean {
+  return Boolean(commuteInfo?.routePath && commuteInfo.routePath.length > 2);
+}
+
+function toStoredCommuteInfo(data: CommuteApiResponse): CommuteInfoType {
+  return {
+    duration: data.duration,
+    method: data.method,
+    route: data.route,
+    isDummy: data.isDummy,
+    distance: data.distance,
+    provider: data.provider,
+    error: data.error,
+    mapUrl: data.mapUrl,
+    staticMapUrl: data.staticMapUrl,
+    mapClientId: data.mapClientId,
+    originPoint: data.originPoint,
+    destinationPoint: data.destinationPoint,
+    routePath: data.routePath,
+  };
+}
+
+export default function CommuteInfo({
+  destination,
+  commuteInfo,
+  onResolved,
+}: CommuteInfoProps) {
   const [apiInfo, setApiInfo] = useState<CommuteApiResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -63,8 +86,10 @@ export default function CommuteInfo({ destination, commuteInfo }: CommuteInfoPro
     canCalculate &&
     (!commuteInfo ||
       !commuteInfo.staticMapUrl ||
+      !commuteInfo.mapClientId ||
       !commuteInfo.originPoint ||
-      !commuteInfo.destinationPoint);
+      !commuteInfo.destinationPoint ||
+      !hasUsableRoutePath(commuteInfo));
 
   useEffect(() => {
     const controller = new AbortController();
@@ -92,6 +117,7 @@ export default function CommuteInfo({ destination, commuteInfo }: CommuteInfoPro
         }
 
         setApiInfo(data);
+        onResolved?.(toStoredCommuteInfo(data));
         setError(data.error ?? null);
       } catch (err) {
         if (controller.signal.aborted) return;
@@ -105,7 +131,7 @@ export default function CommuteInfo({ destination, commuteInfo }: CommuteInfoPro
       controller.abort();
       window.clearTimeout(timer);
     };
-  }, [destination, needsCommuteRefresh]);
+  }, [destination, needsCommuteRefresh, onResolved]);
 
   const info = apiInfo ?? commuteInfo;
   const distanceLabel = useMemo(() => formatDistance(info?.distance), [info?.distance]);
@@ -141,8 +167,8 @@ export default function CommuteInfo({ destination, commuteInfo }: CommuteInfoPro
   }
 
   const hasRealDuration = Boolean(info && info.duration > 0);
-  const adjustedDuration = info && hasRealDuration ? toTransitAdjustedDuration(info.duration) : 0;
-  const durationColor = hasRealDuration ? getDurationColor(adjustedDuration) : "text-gray-400";
+  const displayDuration = info && hasRealDuration ? info.duration : 0;
+  const durationColor = hasRealDuration ? getDurationColor(displayDuration) : "text-gray-400";
   const originLabel = apiInfo?.origin ?? USER_INFO.homeAddress;
   const destinationLabel = apiInfo?.destination ?? destination;
   const isDrivingReference = info?.method === "자동차 참고";
@@ -185,12 +211,12 @@ export default function CommuteInfo({ destination, commuteInfo }: CommuteInfoPro
             <div className="flex items-center gap-1.5">
               <Clock className={`w-5 h-5 ${durationColor}`} />
               <span className={`text-2xl font-bold ${durationColor}`}>
-                {formatDuration(adjustedDuration)}
+                {formatDuration(displayDuration)}
               </span>
             </div>
             <div className="text-xs text-gray-500">
               <p>
-                {isDrivingReference ? "대중교통 환산" : info.method}
+                {info.method}
                 {distanceLabel ? ` · ${distanceLabel}` : ""}
               </p>
             </div>

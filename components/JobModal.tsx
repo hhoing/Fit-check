@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import {
   X,
   ExternalLink,
@@ -23,6 +23,7 @@ import {
   JobPositionDetail,
   JobStatus,
   JobCategory,
+  CommuteInfo as CommuteInfoType,
   AnalyzeFitResponse,
   ParseJobResponse,
 } from "@/types";
@@ -56,7 +57,12 @@ export default function JobModal({ job, onClose, onUpdate, onRequestDelete }: Jo
   const [analyzing, setAnalyzing] = useState(false);
   const [refreshingInfo, setRefreshingInfo] = useState(false);
   const [localJob, setLocalJob] = useState<JobPosting>(job);
+  const localJobRef = useRef(job);
   const { toast } = useToast();
+
+  useEffect(() => {
+    localJobRef.current = localJob;
+  }, [localJob]);
 
   // Esc 키로 닫기
   useEffect(() => {
@@ -212,6 +218,16 @@ export default function JobModal({ job, onClose, onUpdate, onRequestDelete }: Jo
     onUpdate(updated);
     toast(updated.isFavorite ? "즐겨찾기에 추가했습니다." : "즐겨찾기에서 해제했습니다.", "success");
   }, [localJob, onUpdate, toast]);
+
+  const handleCommuteResolved = useCallback(
+    (commuteTime: CommuteInfoType) => {
+      const updated = { ...localJobRef.current, commuteTime };
+      localJobRef.current = updated;
+      setLocalJob(updated);
+      onUpdate(updated);
+    },
+    [onUpdate]
+  );
 
   const handleDeleteRequest = useCallback(() => {
     onRequestDelete(localJob);
@@ -502,6 +518,7 @@ export default function JobModal({ job, onClose, onUpdate, onRequestDelete }: Jo
             <CommuteInfo
               destination={localJob.workplaceAddress}
               commuteInfo={localJob.commuteTime}
+              onResolved={handleCommuteResolved}
             />
           </section>
 
