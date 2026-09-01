@@ -66,7 +66,6 @@ export interface CommuteInfo {
   provider?: "naver" | "fallback";
   error?: string;
   mapUrl?: string;
-  staticMapUrl?: string;
   mapClientId?: string;
   originPoint?: MapPoint;
   destinationPoint?: MapPoint;

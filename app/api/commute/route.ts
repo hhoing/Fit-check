@@ -110,40 +110,6 @@ function toRoutePath(path: Array<[number, number]> | undefined): MapPoint[] | un
   return routePath && routePath.length > 1 ? routePath : undefined;
 }
 
-function sampleRoutePath(routePath: MapPoint[] | undefined, limit = 50): MapPoint[] | undefined {
-  if (!routePath || routePath.length <= limit) return routePath;
-
-  const step = Math.ceil(routePath.length / limit);
-  const sampled = routePath.filter((_, index) => index % step === 0);
-  const last = routePath[routePath.length - 1];
-
-  if (last && sampled[sampled.length - 1] !== last) sampled.push(last);
-  return sampled;
-}
-
-function createStaticMapUrl(
-  origin: GeocodeAddress,
-  destination: GeocodeAddress,
-  routePath: MapPoint[] | undefined
-): string {
-  const params = new URLSearchParams({
-    olng: origin.x,
-    olat: origin.y,
-    dlng: destination.x,
-    dlat: destination.y,
-  });
-  const sampledPath = sampleRoutePath(routePath);
-
-  if (sampledPath?.length) {
-    params.set(
-      "path",
-      sampledPath.map((point) => `${point.lng.toFixed(6)},${point.lat.toFixed(6)}`).join(";")
-    );
-  }
-
-  return `/api/commute/static-map?${params.toString()}`;
-}
-
 async function getDrivingReference(
   origin: GeocodeAddress,
   destination: GeocodeAddress
@@ -287,11 +253,6 @@ export async function POST(req: NextRequest) {
       originPoint: toMapPoint(originPoint),
       destinationPoint: toMapPoint(destinationPoint),
       routePath: drivingReference.routePath,
-      staticMapUrl: createStaticMapUrl(
-        originPoint,
-        destinationPoint,
-        drivingReference.routePath
-      ),
       mapUrl: createNaverRouteMapUrl(
         originPoint,
         destinationPoint,

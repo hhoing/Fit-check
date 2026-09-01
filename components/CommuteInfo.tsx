@@ -65,7 +65,6 @@ function toStoredCommuteInfo(data: CommuteApiResponse): CommuteInfoType {
     provider: data.provider,
     error: data.error,
     mapUrl: data.mapUrl,
-    staticMapUrl: data.staticMapUrl,
     mapClientId: data.mapClientId,
     originPoint: data.originPoint,
     destinationPoint: data.destinationPoint,
@@ -85,7 +84,6 @@ export default function CommuteInfo({
   const needsCommuteRefresh =
     canCalculate &&
     (!commuteInfo ||
-      !commuteInfo.staticMapUrl ||
       !commuteInfo.mapClientId ||
       !commuteInfo.originPoint ||
       !commuteInfo.destinationPoint ||
