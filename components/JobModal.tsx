@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, useCallback } from "react";
 import {
+  Check,
   X,
   ExternalLink,
   Building2,
@@ -15,8 +16,10 @@ import {
   Briefcase,
   UserRound,
   NotebookPen,
+  Pencil,
   Star,
   Trash2,
+  Undo2,
 } from "lucide-react";
 import {
   JobPosting,
@@ -29,7 +32,7 @@ import {
 } from "@/types";
 import { STATUS_LIST, STATUS_CONFIG } from "@/lib/constants";
 import { CURRENT_JOB_PARSER_VERSION } from "@/lib/jobParserVersion";
-import { formatDeadlineLong } from "@/lib/deadline";
+import { formatDeadlineLong, isOngoingDeadline, ONGOING_DEADLINE_LABEL } from "@/lib/deadline";
 import {
   JOB_CATEGORY_CONFIG,
   JOB_CATEGORY_LIST,
@@ -52,10 +55,63 @@ interface JobModalProps {
 const STATUS_ACTION_LIST = STATUS_LIST.filter(
   (status): status is Exclude<JobStatus, "관심"> => status !== "관심"
 );
+const TIME_INPUT_PATTERN = /^([01]\d|2[0-3]):([0-5]\d)$/;
+const ISO_DATE_INPUT_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+const EXPERIENCE_OPTIONS: Array<NonNullable<JobPosting["experienceLevel"]>> = [
+  "신입",
+  "경력",
+  "신입/경력",
+  "경력무관",
+  "미확인",
+];
+
+type DeadlineEditMode = "date" | "ongoing" | "unknown";
+
+type JobInfoDraft = {
+  companyName: string;
+  jobTitle: string;
+  workplaceAddress: string;
+  deadlineMode: DeadlineEditMode;
+  deadlineDate: string;
+  deadlineTime: string;
+  salary: string;
+  employmentType: string;
+  experienceLevel: NonNullable<JobPosting["experienceLevel"]>;
+  sourceUrl: string;
+};
+
+function getDeadlineEditMode(job: JobPosting): DeadlineEditMode {
+  if (!job.deadline) return "unknown";
+  if (isOngoingDeadline(job.deadline)) return "ongoing";
+  return ISO_DATE_INPUT_PATTERN.test(job.deadline) ? "date" : "unknown";
+}
+
+function createJobInfoDraft(job: JobPosting): JobInfoDraft {
+  const deadlineMode = getDeadlineEditMode(job);
+
+  return {
+    companyName: job.companyName,
+    jobTitle: job.jobTitle,
+    workplaceAddress: job.workplaceAddress,
+    deadlineMode,
+    deadlineDate: deadlineMode === "date" && job.deadline ? job.deadline : "",
+    deadlineTime: job.deadlineTime ?? "",
+    salary: job.salary ?? "미확인",
+    employmentType: job.employmentType ?? "미확인",
+    experienceLevel: job.experienceLevel ?? "미확인",
+    sourceUrl: job.sourceUrl ?? "",
+  };
+}
+
+function trimOrFallback(value: string, fallback: string): string {
+  return value.trim() || fallback;
+}
 
 export default function JobModal({ job, onClose, onUpdate, onRequestDelete }: JobModalProps) {
   const [analyzing, setAnalyzing] = useState(false);
   const [refreshingInfo, setRefreshingInfo] = useState(false);
+  const [editingInfo, setEditingInfo] = useState(false);
+  const [infoDraft, setInfoDraft] = useState<JobInfoDraft>(() => createJobInfoDraft(job));
   const [localJob, setLocalJob] = useState<JobPosting>(job);
   const localJobRef = useRef(job);
   const { toast } = useToast();
@@ -218,6 +274,66 @@ export default function JobModal({ job, onClose, onUpdate, onRequestDelete }: Jo
     onUpdate(updated);
     toast(updated.isFavorite ? "즐겨찾기에 추가했습니다." : "즐겨찾기에서 해제했습니다.", "success");
   }, [localJob, onUpdate, toast]);
+
+  const handleInfoDraftChange = useCallback((key: keyof JobInfoDraft, value: string) => {
+    setInfoDraft((prev) => ({ ...prev, [key]: value } as JobInfoDraft));
+  }, []);
+
+  const startEditingInfo = useCallback(() => {
+    setInfoDraft(createJobInfoDraft(localJob));
+    setEditingInfo(true);
+  }, [localJob]);
+
+  const cancelEditingInfo = useCallback(() => {
+    setInfoDraft(createJobInfoDraft(localJob));
+    setEditingInfo(false);
+  }, [localJob]);
+
+  const saveEditedInfo = useCallback(() => {
+    if (infoDraft.deadlineMode === "date" && !infoDraft.deadlineDate) {
+      toast("마감일을 선택하거나 상시채용/미정으로 바꿔주세요.", "error");
+      return;
+    }
+
+    if (infoDraft.deadlineTime && !TIME_INPUT_PATTERN.test(infoDraft.deadlineTime)) {
+      toast("마감 시간은 HH:mm 형식으로 입력해 주세요.", "error");
+      return;
+    }
+
+    const deadline =
+      infoDraft.deadlineMode === "ongoing"
+        ? ONGOING_DEADLINE_LABEL
+        : infoDraft.deadlineMode === "unknown"
+        ? null
+        : infoDraft.deadlineDate;
+    const deadlineTime = infoDraft.deadlineMode === "date" ? infoDraft.deadlineTime || null : null;
+    const workplaceAddress = trimOrFallback(infoDraft.workplaceAddress, "미확인");
+    const didAddressChange = workplaceAddress !== localJob.workplaceAddress;
+    const updated: JobPosting = {
+      ...localJob,
+      companyName: trimOrFallback(infoDraft.companyName, localJob.companyName),
+      jobTitle: trimOrFallback(infoDraft.jobTitle, localJob.jobTitle),
+      workplaceAddress,
+      deadline,
+      deadlineTime,
+      salary: trimOrFallback(infoDraft.salary, "미확인"),
+      employmentType: trimOrFallback(infoDraft.employmentType, "미확인"),
+      experienceLevel: infoDraft.experienceLevel,
+      sourceUrl: infoDraft.sourceUrl.trim() || undefined,
+      commuteTime: didAddressChange ? undefined : localJob.commuteTime,
+    };
+
+    localJobRef.current = updated;
+    setLocalJob(updated);
+    onUpdate(updated);
+    setEditingInfo(false);
+    toast(
+      didAddressChange
+        ? "공고 정보를 수정했습니다. 통근 정보는 새 주소 기준으로 다시 계산합니다."
+        : "공고 정보를 수정했습니다.",
+      "success"
+    );
+  }, [infoDraft, localJob, onUpdate, toast]);
 
   const handleCommuteResolved = useCallback(
     (commuteTime: CommuteInfoType) => {
@@ -391,63 +507,105 @@ export default function JobModal({ job, onClose, onUpdate, onRequestDelete }: Jo
           <section className="space-y-2">
             <div className="flex items-center justify-between gap-2">
               <h3 className="text-sm font-semibold text-gray-700">공고 정보</h3>
-              <button
-                onClick={refreshJobInfo}
-                disabled={refreshingInfo || analyzing}
-                className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 px-2.5 py-1.5 text-xs font-semibold text-gray-500 transition-colors hover:border-blue-200 hover:text-blue-500 disabled:opacity-50"
-              >
-                <RefreshCw className={`w-3.5 h-3.5 ${refreshingInfo ? "animate-spin" : ""}`} />
-                다시 추출
-              </button>
+              <div className="flex items-center gap-1.5">
+                {editingInfo ? (
+                  <>
+                    <button
+                      onClick={cancelEditingInfo}
+                      className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 px-2.5 py-1.5 text-xs font-semibold text-gray-500 transition-colors hover:bg-gray-50"
+                    >
+                      <Undo2 className="w-3.5 h-3.5" />
+                      취소
+                    </button>
+                    <button
+                      onClick={saveEditedInfo}
+                      className="inline-flex items-center gap-1.5 rounded-lg border border-blue-200 bg-blue-50 px-2.5 py-1.5 text-xs font-semibold text-blue-600 transition-colors hover:bg-blue-100"
+                    >
+                      <Check className="w-3.5 h-3.5" />
+                      저장
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <button
+                      onClick={startEditingInfo}
+                      disabled={refreshingInfo || analyzing}
+                      className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 px-2.5 py-1.5 text-xs font-semibold text-gray-500 transition-colors hover:border-blue-200 hover:text-blue-500 disabled:opacity-50"
+                    >
+                      <Pencil className="w-3.5 h-3.5" />
+                      편집
+                    </button>
+                    <button
+                      onClick={refreshJobInfo}
+                      disabled={refreshingInfo || analyzing}
+                      className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 px-2.5 py-1.5 text-xs font-semibold text-gray-500 transition-colors hover:border-blue-200 hover:text-blue-500 disabled:opacity-50"
+                    >
+                      <RefreshCw className={`w-3.5 h-3.5 ${refreshingInfo ? "animate-spin" : ""}`} />
+                      다시 추출
+                    </button>
+                  </>
+                )}
+              </div>
             </div>
             <div className="bg-gray-50 rounded-xl p-4 space-y-2.5">
-              <InfoRow
-                icon={<Building2 className="w-4 h-4" />}
-                label="회사명"
-                value={localJob.companyName}
-              />
-              <InfoRow
-                icon={<MapPin className="w-4 h-4" />}
-                label="근무지"
-                value={localJob.workplaceAddress}
-              />
-              <InfoRow
-                icon={<Calendar className="w-4 h-4" />}
-                label="마감일"
-                value={formatDeadlineLong(localJob.deadline, localJob.deadlineTime)}
-              />
-              <InfoRow
-                icon={<Wallet className="w-4 h-4" />}
-                label="급여"
-                value={localJob.salary || "미확인"}
-              />
-              <InfoRow
-                icon={<Briefcase className="w-4 h-4" />}
-                label="근무형태"
-                value={localJob.employmentType || "미확인"}
-              />
-              <InfoRow
-                icon={<UserRound className="w-4 h-4" />}
-                label="경력구분"
-                value={localJob.experienceLevel || "미확인"}
-              />
-              {localJob.sourceUrl && (
-                <div className="flex items-start gap-2.5">
-                  <span className="text-gray-400 mt-0.5 shrink-0">
-                    <ExternalLink className="w-4 h-4" />
-                  </span>
-                  <div className="flex items-start gap-2 min-w-0">
-                    <span className="text-xs text-gray-400 shrink-0 w-14">원본</span>
-                    <a
-                      href={localJob.sourceUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-xs text-blue-500 font-medium break-all hover:underline"
-                    >
-                      공고 링크 열기
-                    </a>
-                  </div>
-                </div>
+              {editingInfo ? (
+                <EditableInfoForm draft={infoDraft} onChange={handleInfoDraftChange} />
+              ) : (
+                <>
+                  <InfoRow
+                    icon={<Building2 className="w-4 h-4" />}
+                    label="회사명"
+                    value={localJob.companyName}
+                  />
+                  <InfoRow
+                    icon={<Building2 className="w-4 h-4" />}
+                    label="직무명"
+                    value={localJob.jobTitle}
+                  />
+                  <InfoRow
+                    icon={<MapPin className="w-4 h-4" />}
+                    label="근무지"
+                    value={localJob.workplaceAddress}
+                  />
+                  <InfoRow
+                    icon={<Calendar className="w-4 h-4" />}
+                    label="마감일"
+                    value={formatDeadlineLong(localJob.deadline, localJob.deadlineTime)}
+                  />
+                  <InfoRow
+                    icon={<Wallet className="w-4 h-4" />}
+                    label="급여"
+                    value={localJob.salary || "미확인"}
+                  />
+                  <InfoRow
+                    icon={<Briefcase className="w-4 h-4" />}
+                    label="근무형태"
+                    value={localJob.employmentType || "미확인"}
+                  />
+                  <InfoRow
+                    icon={<UserRound className="w-4 h-4" />}
+                    label="경력구분"
+                    value={localJob.experienceLevel || "미확인"}
+                  />
+                  {localJob.sourceUrl && (
+                    <div className="flex items-start gap-2.5">
+                      <span className="text-gray-400 mt-0.5 shrink-0">
+                        <ExternalLink className="w-4 h-4" />
+                      </span>
+                      <div className="flex items-start gap-2 min-w-0">
+                        <span className="text-xs text-gray-400 shrink-0 w-14">원본</span>
+                        <a
+                          href={localJob.sourceUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-xs text-blue-500 font-medium break-all hover:underline"
+                        >
+                          공고 링크 열기
+                        </a>
+                      </div>
+                    </div>
+                  )}
+                </>
               )}
             </div>
           </section>
@@ -642,6 +800,143 @@ function DetailSection({
         </ul>
       </div>
     </section>
+  );
+}
+
+function EditableInfoForm({
+  draft,
+  onChange,
+}: {
+  draft: JobInfoDraft;
+  onChange: (key: keyof JobInfoDraft, value: string) => void;
+}) {
+  return (
+    <div className="space-y-3">
+      <div className="grid gap-3 sm:grid-cols-2">
+        <EditableTextField
+          label="회사명"
+          value={draft.companyName}
+          onChange={(value) => onChange("companyName", value)}
+        />
+        <EditableTextField
+          label="직무명"
+          value={draft.jobTitle}
+          onChange={(value) => onChange("jobTitle", value)}
+        />
+      </div>
+
+      <EditableTextField
+        label="근무지"
+        value={draft.workplaceAddress}
+        onChange={(value) => onChange("workplaceAddress", value)}
+        multiline
+      />
+
+      <div className="space-y-2">
+        <p className="text-xs font-semibold text-gray-500">마감</p>
+        <div className="inline-flex overflow-hidden rounded-lg border border-gray-100 bg-white text-xs font-semibold">
+          {[
+            ["date", "날짜"],
+            ["ongoing", "상시채용"],
+            ["unknown", "미정"],
+          ].map(([mode, label]) => (
+            <button
+              key={mode}
+              type="button"
+              onClick={() => onChange("deadlineMode", mode)}
+              className={`px-3 py-2 transition-colors ${
+                draft.deadlineMode === mode
+                  ? "bg-gray-900 text-white"
+                  : "text-gray-500 hover:bg-gray-50"
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+        {draft.deadlineMode === "date" && (
+          <div className="grid gap-2 sm:grid-cols-2">
+            <input
+              type="date"
+              value={draft.deadlineDate}
+              onChange={(e) => onChange("deadlineDate", e.target.value)}
+              className="h-10 rounded-lg border border-gray-100 bg-white px-3 text-sm text-gray-700 outline-none transition focus:border-blue-200 focus:ring-2 focus:ring-blue-100"
+            />
+            <input
+              type="time"
+              value={draft.deadlineTime}
+              onChange={(e) => onChange("deadlineTime", e.target.value)}
+              className="h-10 rounded-lg border border-gray-100 bg-white px-3 text-sm text-gray-700 outline-none transition focus:border-blue-200 focus:ring-2 focus:ring-blue-100"
+            />
+          </div>
+        )}
+      </div>
+
+      <div className="grid gap-3 sm:grid-cols-2">
+        <EditableTextField
+          label="급여"
+          value={draft.salary}
+          onChange={(value) => onChange("salary", value)}
+        />
+        <EditableTextField
+          label="근무형태"
+          value={draft.employmentType}
+          onChange={(value) => onChange("employmentType", value)}
+        />
+      </div>
+
+      <div className="space-y-1.5">
+        <label className="text-xs font-semibold text-gray-500">경력구분</label>
+        <select
+          value={draft.experienceLevel}
+          onChange={(e) => onChange("experienceLevel", e.target.value)}
+          className="h-10 w-full rounded-lg border border-gray-100 bg-white px-3 text-sm text-gray-700 outline-none transition focus:border-blue-200 focus:ring-2 focus:ring-blue-100"
+        >
+          {EXPERIENCE_OPTIONS.map((option) => (
+            <option key={option} value={option}>
+              {option}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      <EditableTextField
+        label="원본 URL"
+        value={draft.sourceUrl}
+        onChange={(value) => onChange("sourceUrl", value)}
+      />
+    </div>
+  );
+}
+
+function EditableTextField({
+  label,
+  value,
+  onChange,
+  multiline = false,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  multiline?: boolean;
+}) {
+  return (
+    <div className="space-y-1.5">
+      <label className="text-xs font-semibold text-gray-500">{label}</label>
+      {multiline ? (
+        <textarea
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          className="min-h-20 w-full resize-none rounded-lg border border-gray-100 bg-white px-3 py-2 text-sm text-gray-700 outline-none transition focus:border-blue-200 focus:ring-2 focus:ring-blue-100"
+        />
+      ) : (
+        <input
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          className="h-10 w-full rounded-lg border border-gray-100 bg-white px-3 text-sm text-gray-700 outline-none transition focus:border-blue-200 focus:ring-2 focus:ring-blue-100"
+        />
+      )}
+    </div>
   );
 }
 
